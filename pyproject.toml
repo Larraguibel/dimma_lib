@@ -15,8 +15,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The loaders in dimma.datasets are a convenience, and no algorithm imports
+# them, so the dataframe stack stays out of the base install.
+datasets = [
+    "pandas>=2.0",
+    "pyarrow>=14",
+]
 dev = [
     "pytest>=8.0",
+    "dimma[datasets]",
 ]
 
 [tool.setuptools.packages.find]

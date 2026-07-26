@@ -63,21 +63,23 @@ and the algorithms never import the models.
 
 ## Layout
 
-Only `core` is implemented so far; the rest is being ported in.
+`core` and the dataset loaders; the rest is being ported in.
 
 ```
 src/dimma/
-└── core/                    the pipeline stages
-    ├── sampling/            stage 1 — one module per mechanism
-    │   ├── poisson.py         the standard one; raises on an oversize draw
-    │   └── poisson_truncated.py   modified mechanism, lower bound only
-    ├── gradients.py         stage 3 — per-sample and batch gradients
-    ├── clipping.py          stage 4
-    ├── aggregation.py       stage 5 — sum/average, Poisson masking
-    ├── noise.py             stage 6 — Gaussian and Laplace
-    ├── updates.py           stage 7 — the seam onto optax
-    ├── pytree.py            pytree vector-space ops
-    └── projection.py        ℓ₁-ball geometry
+├── core/                    the pipeline stages
+│   ├── sampling/            stage 1 — one module per mechanism
+│   │   ├── poisson.py         the standard one; raises on an oversize draw
+│   │   └── poisson_truncated.py   modified mechanism, lower bound only
+│   ├── gradients.py         stage 3 — per-sample and batch gradients
+│   ├── clipping.py          stage 4
+│   ├── aggregation.py       stage 5 — sum/average, Poisson masking
+│   ├── noise.py             stage 6 — Gaussian and Laplace
+│   ├── updates.py           stage 7 — the seam onto optax
+│   ├── pytree.py            pytree vector-space ops
+│   └── projection.py        ℓ₁-ball geometry
+└── datasets/                loaders; no algorithm imports these
+    └── criteo.py             Criteo 1M — columns × preprocessing, four ways
 
 tests/                       mirrors src/dimma/
 docs/agents/                 agent-facing context, not published
