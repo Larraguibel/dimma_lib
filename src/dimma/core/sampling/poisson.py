@@ -26,14 +26,23 @@ def padded_batch_size(b_expected: int, n: int,
     ``p = b_expected / n``. At 6 sigmas a draw exceeds the cap with
     probability below ~1e-9 for typical DP-SGD configurations.
 
+    Clamped to ``n``, which is the cap the mechanism already carries:
+    the draw is ``Binomial(n, p)``, so no cap above ``n`` is meaningful
+    and clamping to it removes no mass. Where the clamp binds the cap is
+    exact rather than probabilistic and :func:`subsample` cannot raise.
+    That is not truncation in the sense of
+    :mod:`dimma.core.sampling.poisson_truncated`, which caps *inside*
+    the support and does change the mechanism.
+
     This is a padding cap, not a privacy parameter. Too low causes an
-    exception here or truncation in
-    :mod:`dimma.core.sampling.poisson_truncated`; too high only wastes
-    memory.
+    exception here or truncation there; too high only wastes memory.
+    Passing ``n`` directly to :func:`subsample` is always sound and
+    costs an ``O(n)`` batch, which is what this function trades away for
+    an ``O(b_expected)`` one at a ~1e-9 failure rate.
     """
     p = b_expected / n
     std = math.sqrt(b_expected * max(1.0 - p, 0.0))
-    return int(math.ceil(b_expected + margin_sigmas * std + 4))
+    return min(int(math.ceil(b_expected + margin_sigmas * std + 4)), n)
 
 
 def _pad_and_mask(idx: np.ndarray, b_max: int) -> tuple[np.ndarray, np.ndarray]:

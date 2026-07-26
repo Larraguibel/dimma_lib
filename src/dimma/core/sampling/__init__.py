@@ -7,8 +7,8 @@ applies to them, and that belongs in the import line.
 ``poisson``
     The standard mechanism. Raises on an oversize draw.
 ``poisson_truncated``
-    Truncates oversize draws. Modified mechanism, lower bound rather
-    than a guarantee.
+    Truncates oversize draws. Modified mechanism; the standard
+    accounting does not apply to it.
 
 Samplers state what they sample; they compute no privacy budget.
 """

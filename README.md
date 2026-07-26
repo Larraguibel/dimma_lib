@@ -63,14 +63,21 @@ and the algorithms never import the models.
 
 ## Layout
 
-`core` and the dataset loaders; the rest is being ported in.
+`core`, the dataset loaders, and the first algorithm with its accountant;
+the rest is being ported in.
 
 ```
 src/dimma/
+├── accounting/              where the privacy claims live
+│   └── sampling.py          subsampled-Gaussian ε, via dp-accounting
+├── algorithms/              one package per algorithm
+│   └── dp_sgd/               classical DP-SGD (Abadi et al., 2016)
+│       ├── step.py             one iteration; the privatized gradient
+│       └── train.py            the loop, and stage 1
 ├── core/                    the pipeline stages
 │   ├── sampling/            stage 1 — one module per mechanism
 │   │   ├── poisson.py         the standard one; raises on an oversize draw
-│   │   └── poisson_truncated.py   modified mechanism, lower bound only
+│   │   └── poisson_truncated.py   modified mechanism, unaccounted
 │   ├── gradients.py         stage 3 — per-sample and batch gradients
 │   ├── clipping.py          stage 4
 │   ├── aggregation.py       stage 5 — sum/average, Poisson masking

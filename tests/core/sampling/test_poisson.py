@@ -18,8 +18,22 @@ def test_padded_batch_size_grows_with_the_margin():
 
 
 def test_padded_batch_size_handles_p_equal_to_one():
-    """p = 1 means zero variance, so the cap is the constant slack only."""
-    assert poisson.padded_batch_size(50, 50) == 54
+    """p = 1 draws every example, so the cap is exactly n."""
+    assert poisson.padded_batch_size(50, 50) == 50
+
+
+def test_padded_batch_size_never_exceeds_the_dataset():
+    """No draw can exceed n, so no cap above it is meaningful."""
+    for b_expected, n in [(50, 60), (900, 1000), (5, 6), (1, 2)]:
+        assert poisson.padded_batch_size(b_expected, n) <= n
+
+
+def test_a_cap_of_n_cannot_raise(rng):
+    """Clamped to n the cap is exact: Binomial(n, p) has no mass above n."""
+    n = 200
+    for _ in range(50):
+        indices, mask = poisson.subsample(rng, n, 0.95, n)
+        assert indices.shape == (n,)
 
 
 def test_returns_padded_indices_and_mask_of_fixed_shape(rng):

@@ -2,11 +2,13 @@
 
 .. warning::
 
-    Not the standard Poisson-subsampled mechanism. The standard
-    ``PoissonSampledDpEvent`` bound is a lower bound on this
-    mechanism's true privacy cost, not a valid guarantee: truncation
-    gives the adversary additional advantage. Do not use it for
-    published privacy claims without a tighter analysis.
+    Not the standard Poisson-subsampled mechanism. Truncation makes
+    inclusion dependent across examples, and independence is what
+    subsampling amplification assumes, so the standard
+    ``PoissonSampledDpEvent`` bound does not apply and is not a valid
+    guarantee here. Whether the true cost is higher or lower is
+    unestablished. Do not use it for published privacy claims without
+    an analysis of this mechanism.
 
 Exists to support research into modified-mechanism accountants. If you
 do not need truncated semantics use :mod:`dimma.core.sampling.poisson`.
