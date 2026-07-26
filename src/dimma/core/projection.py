@@ -28,9 +28,8 @@ def project_l1_ball(x: jax.Array, radius: float | jax.Array) -> jax.Array:
     Branchless, so ``radius`` may be traced; callers deriving it at
     runtime depend on this.
     """
-
-    # Radius is non-negative
-    if not isinstance(radius, jax.core.Tracer):
+    # Non-negative radius
+    if isinstance(radius, (int, float)) and not isinstance(radius, bool):
         assert radius >= 0, f"radius must be non-negative, got {radius}."
 
     abs_x = jnp.abs(x)

@@ -5,10 +5,18 @@ optimizers to `optax`, as it delegates accounting to `dp-accounting`.
 Pinning a private method and its baseline to the same `optax.adam` is
 what keeps that comparison controlled.
 
-Every optax optimizer and schedule is reachable from here, so callers
-never import optax directly:
+The optimizer itself comes from optax, named at the call site:
 
-    from dimma.core.updates import adam, cosine_decay_schedule
+    import optax
+    from dimma.core import updates
+
+    opt = optax.adam(optax.cosine_decay_schedule(lr, decay_steps=T))
+    state = updates.init(opt, params)
+    params, state = updates.apply(opt, params, grad, state)
+
+dimma does not wrap or re-export optax's optimizers. Which optimizer a
+run used is part of what makes a comparison reproducible, so it is
+better read from the caller's own import than from a dimma alias.
 
 Steps, not epochs. A DP algorithm's privacy cost composes over
 optimizer steps, so the step count is what must be held fixed when two
@@ -26,7 +34,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import optax
 from optax import GradientTransformation, OptState, Schedule, apply_updates
 
 __all__ = [
@@ -55,22 +62,3 @@ def apply(optimizer: GradientTransformation, params: Any, grad: Any,
     """
     updates, opt_state = optimizer.update(grad, opt_state, params)
     return apply_updates(params, updates), opt_state
-
-
-def __getattr__(name: str) -> Any:
-    """Expose optax's optimizers and schedules under this module.
-
-    Delegation rather than a re-export list, so the surface cannot drift
-    as optax adds optimizers.
-    """
-    try:
-        return getattr(optax, name)
-    except AttributeError:
-        raise AttributeError(
-            f"module {__name__!r} has no attribute {name!r} "
-            f"(and neither does optax)"
-        ) from None
-
-
-def __dir__() -> list[str]:
-    return sorted(set(__all__) | set(dir(optax)))
