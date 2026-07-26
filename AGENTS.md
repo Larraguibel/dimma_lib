@@ -1,5 +1,13 @@
 # dimma_lib
 
+> **Don't delete `CLAUDE.md`.** It looks redundant — it contains only the line
+> `@AGENTS.md` — but Claude Code does not discover `AGENTS.md` on its own
+> (verified on 2.1.220: the same file was read under the name `CLAUDE.md` and
+> ignored under the name `AGENTS.md`). It fails silently, with no warning, so
+> removing `CLAUDE.md` makes everything below invisible to Claude Code while
+> appearing to work. Other agents (Codex, Cursor, Copilot) read this file
+> directly.
+
 ## Agent skills
 
 ### Issue tracker
