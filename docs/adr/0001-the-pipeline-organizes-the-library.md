@@ -21,3 +21,10 @@ exist — hence the membership rule in `dimma/core/__init__.py`, which admits
 stage-independent math only when it has two consumers in different modules.
 `pytree` and `projection` are the two admitted that way, and both are closed
 sets.
+
+Omitting a stage is a choice the model expresses, not an exception to it.
+Private SpiderBoost performs no clipping: it takes its sensitivity bound from
+the function class it assumes rather than from an operation, so stage 4 is
+absent by decision. An algorithm's absent stages are part of its description,
+and are documented as absent rather than silently skipped — otherwise a later
+reader repairs the omission.

@@ -1,11 +1,12 @@
 # An algorithm is a package, split at the accountant's seam
 
 Each algorithm gets a package under `src/dimma/algorithms/`, containing a
-`step` module and a `train` module. `step` is split into two functions: one
-returning the privatized gradient — everything the mechanism releases, and so
-the only thing an accountant accounts for — and one applying it, which is
-post-processing and free. `train` owns stage 1, threads the optimizer state and
-the noise key, and returns parameters.
+`step` module and a `train` module. For each mechanism the algorithm composes,
+`step` exposes a function returning that mechanism's release — everything it
+makes public, and so the only thing an accountant accounts for — and a function
+applying it, which is post-processing and free. An algorithm composing one
+mechanism has two such functions; one composing two has four. `train` owns
+stage 1, threads the state the loop carries, and returns parameters.
 
 The seam is the point of the shape. Splitting an algorithm at "what is
 released" versus "what is done with it" makes the boundary an accountant
@@ -16,11 +17,22 @@ rather than inherited from whichever algorithm happened to be ported first.
 
 ## Consequences
 
+Count mechanisms, not functions. Two mechanisms differ if they differ anywhere
+— sampling rate, what is aggregated, the bound its sensitivity rests on, the
+noise scale — so sharing one release function between two of them would put one
+accountant's assumptions on another's code.
+
+Everything after the release is on the apply side. Accumulating a running
+estimate, projecting, updating parameters: all post-processing, all belonging
+to the apply function rather than to the loop. This is what stops an algorithm
+from doing its distinctive work in `train` and leaving `step` a stub, and it is
+what keeps a step a single compiled call.
+
 Hyperparameters are keyword-only arguments and there is no configuration
-object. Three bare scalars — lot size, clipping norm, noise multiplier — are
-easy to transpose, and transposing them produces a wrong privacy guarantee
-rather than a crash. Whether a later algorithm earns a config object is open;
-it should be argued for rather than ported in.
+object. Three bare scalars — expected batch size, clipping norm, noise
+multiplier — are easy to transpose, and transposing them produces a wrong
+privacy guarantee rather than a crash. Whether a later algorithm earns a config
+object is open; it should be argued for rather than ported in.
 
 Training loops report no metrics. Evaluating a model on the training data is
 another access to it, costing budget the algorithm does not account for, so

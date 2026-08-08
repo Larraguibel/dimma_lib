@@ -99,8 +99,10 @@ the same ratio and are not interchangeable.
 _Avoid_: noise scale, sigma, standard deviation
 
 **Privatized gradient**:
-The gradient estimate after perturbation — everything a step releases, and the
-only thing a guarantee is about.
+The gradient estimate after perturbation, and the direction stage 7 descends
+along. In the simplest methods it is also the whole of what the step released;
+in a variance-reduced one it is not, being formed from this step's release and
+earlier ones.
 _Avoid_: noisy gradient, private gradient, sanitized gradient
 
 ### Privacy
@@ -113,6 +115,14 @@ different mechanisms, however similar the code. When the literature names one
 — it means a complete map carrying an analysis of its own, not a component of
 one.
 _Avoid_: algorithm, method, procedure
+
+**Release**:
+Everything a mechanism makes public, and so the only thing an accountant
+accounts for. The boundary: what a step releases is accounted, and everything
+computed from it afterwards is post-processing. A release need not be a
+gradient — a variance-reduced method releases an increment and forms its
+estimate from that and earlier releases.
+_Avoid_: output, result, noisy quantity
 
 **Accountant**:
 The conversion between a run's parameters and its privacy cost, in either
