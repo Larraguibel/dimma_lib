@@ -33,4 +33,5 @@ htmlcov/
 *.swp
 .DS_Store
 
+# Implemented papers
 papers
