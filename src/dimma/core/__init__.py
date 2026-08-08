@@ -27,12 +27,14 @@ Stage  What it does            Where it lives
 4      Clipping                `dimma.core.clipping`
 5      Aggregation             `dimma.core.aggregation`
 6      Perturbation            `dimma.core.noise`
-7      Optimization            `dimma.core.updates` (optax)
+7      Optimization            `dimma.core.updates`
 =====  ======================  =============================
 
-Stages 2 and 7 are the caller's, the model and the update rule. dimma
-owns the five in between, which are the ones that turn a gradient into
-a private one. That split is deliberate.
+Stage 2 is the caller's, the model, which runs inside the per-sample
+loss they supply. dimma owns the other six: the five that turn a
+gradient into a private one, and the update rule its algorithms
+descend with. Which rules `updates` implements and which are named
+from `optax` at the call site is ADR-0002.
 
 Implementing no stage: `dimma.core.pytree` (vector-space operations on
 pytrees) and `dimma.core.projection` (``l_1``-ball geometry). Both are

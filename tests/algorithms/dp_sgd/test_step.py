@@ -7,7 +7,6 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import numpy as np
-import optax
 import pytest
 
 from dimma.algorithms.dp_sgd import step as dp_step
@@ -147,10 +146,10 @@ def test_the_key_controls_the_noise(grad_fn, zero_params, batch):
 
 def test_step_descends_along_the_privatized_gradient(grad_fn, zero_params,
                                                      batch, key):
-    """Algorithm 1's descent line: theta - eta * g~, via optax.sgd."""
+    """Algorithm 1's descent line: theta - eta * g~, via updates.sgd."""
     x_b, y_b, mask = batch
     lr = 0.3
-    opt = optax.sgd(lr)
+    opt = updates.sgd(lr)
     args = dict(lot_size=LOT_SIZE, clip_norm=CLIP, noise_multiplier=1.0)
 
     grad = dp_step.private_gradient(grad_fn, zero_params, x_b, y_b, mask, key,
@@ -173,7 +172,7 @@ def test_the_step_is_jittable_and_traces_once(grad_fn, zero_params, batch,
         return squared_error(params, x, y)
 
     x_b, y_b, mask = batch
-    opt = optax.sgd(0.1)
+    opt = updates.sgd(0.1)
     compiled = jax.jit(partial(
         dp_step.step, gradients.per_sample_grads(counted_loss), opt,
         lot_size=LOT_SIZE, clip_norm=CLIP, noise_multiplier=1.0,

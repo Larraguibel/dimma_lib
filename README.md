@@ -16,13 +16,15 @@ is organized around them:
 6. **Perturbation** — add noise calibrated to the privacy budget.
 7. **Optimization** — update parameters from the privatized gradient.
 
-dimma implements stages 1 and 3 through 6 — the ones that turn a gradient into a
-private one. Stage 2 is the caller's model, which runs inside the per-sample loss
-they supply. Stage 7 is delegated to `optax`, so that a private method and its
-non-private baseline can be pinned to the same optimizer rather than to two
-implementations of it. `core` still names all seven, because the stage an
-algorithm does not choose is as much a part of its description as the ones it
-does.
+dimma implements stages 1 and 3 through 7. Stages 1 and 3 through 6 are the ones
+that turn a gradient into a private one; stage 7 is the update rule the
+algorithms descend with, which their papers state and which is a few lines of
+pytree arithmetic. Stage 2 is the caller's model, which runs inside the
+per-sample loss they supply. Adam, which we use for a baseline, is named at the
+call site from `optax` and passes through the same seam, so a private method and
+its baseline can still be pinned to the same optimizer. `core` still names all
+seven, because the stage an algorithm does not choose is as much a part of its
+description as the ones it does.
 
 A non-private method is the same pipeline with stages 4 and 6 dropped, stage 3 changed into per-batch gradient and stage 1 relaxed to ordinary sampling. That is deliberate: it is what makes a private algorithm and its non-private counterpart comparable rather than merely adjacent, and it is why the baselines live inside the library instead of in a scripts folder next to it.
 
@@ -84,7 +86,7 @@ src/dimma/
 │   ├── clipping.py          stage 4
 │   ├── aggregation.py       stage 5 — sum/average, Poisson masking
 │   ├── noise.py             stage 6 — Gaussian and Laplace
-│   ├── updates.py           stage 7 — the seam onto optax
+│   ├── updates.py           stage 7 — sgd, and the seam optax also fits
 │   ├── pytree.py            pytree vector-space ops
 │   └── projection.py        ℓ₁-ball geometry
 └── datasets/                loaders; no algorithm imports these

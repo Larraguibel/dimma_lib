@@ -1,64 +1,124 @@
 """Stage 7 - optimization.
 
-Update parameters from the privatized gradient. dimma delegates
-optimizers to `optax`, as it delegates accounting to `dp-accounting`.
-Pinning a private method and its baseline to the same `optax.adam` is
-what keeps that comparison controlled.
+Apply an estimate to the parameters. The estimate is whatever stage 6
+released: a pytree matching ``params``, formed however the algorithm
+above forms it. This stage does not inspect it, so a variance-reduced
+or otherwise non-gradient direction passes through unchanged::
 
-The optimizer itself comes from optax, named at the call site:
-
-    import optax
-    from dimma.core import updates
-
-    opt = optax.adam(optax.cosine_decay_schedule(lr, decay_steps=T))
+    opt = updates.sgd(0.1)
     state = updates.init(opt, params)
-    params, state = updates.apply(opt, params, grad, state)
+    params, state = updates.apply(opt, params, estimate, state)
 
-dimma does not wrap or re-export optax's optimizers. Which optimizer a
-run used is part of what makes a comparison reproducible, so it is
-better read from the caller's own import than from a dimma alias.
+An `Optimizer` is an ``(init, update)`` pair, structurally optax's
+`GradientTransformation`, so an optimizer implemented there threads
+through `init` and `apply` unchanged.
 
-Steps, not epochs. A DP algorithm's privacy cost composes over
-optimizer steps, so the step count is what must be held fixed when two
-methods are compared. optax agrees by construction: its schedules index
-on `update` calls. A schedule's horizon and the privacy horizon are the
-same run, so they take the same number:
+Steps, not epochs. An optimizer's state advances once per `apply`
+call, so a schedule indexes on the same count a run's length is
+measured in.
 
-    schedule = cosine_decay_schedule(init_value=lr, decay_steps=T)
-
-Optimizer state derived from a privatized gradient is post-processing
-and carries no additional privacy cost.
+Makes no privacy claim: what an update costs depends on the mechanism
+that produced the estimate, not on this stage.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable, NamedTuple
 
-from optax import GradientTransformation, OptState, Schedule, apply_updates
+import jax
+import jax.numpy as jnp
+
+from dimma.core import pytree
 
 __all__ = [
-    "GradientTransformation",
+    "Optimizer",
     "OptState",
     "Schedule",
-    "apply_updates",
+    "SgdState",
+    "sgd",
     "init",
     "apply",
 ]
 
+OptState = Any
+"""Whatever an optimizer carries between steps, shape-invariant across
+calls so a loop can thread it through `jax.jit` without retracing."""
 
-def init(optimizer: GradientTransformation, params: Any) -> OptState:
+Schedule = Callable[[jax.Array], float | jax.Array]
+"""``count -> learning rate``, indexed on update calls rather than on
+epochs. optax's schedules satisfy it."""
+
+
+class Optimizer(NamedTuple):
+    """An ``(init, update)`` pair, structurally optax's transformation.
+
+    ``update(estimate, state, params=None) -> (increment, new_state)``,
+    where ``increment`` is *added* to the parameters. `params` is
+    accepted and ignored here; it exists so a rule that needs the
+    current parameters fits the same signature. The match is
+    structural, not nominal - an `isinstance` check against optax's
+    type fails.
+
+    Holds functions, so it is a *static* argument to `jax.jit` rather
+    than a traced one: bind it with `functools.partial`, or name it in
+    ``static_argnums``.
+    """
+
+    init: Callable[[Any], OptState]
+    update: Callable[..., tuple[Any, OptState]]
+
+
+class SgdState(NamedTuple):
+    """`sgd`'s state: updates applied so far, the unit a run's length
+    is measured in."""
+
+    count: jax.Array
+
+
+def sgd(learning_rate: float | Schedule) -> Optimizer:
+    """Descend along the estimate: ``theta <- theta - eta * estimate``.
+
+    No momentum and no state beyond the count. An unused option at
+    stage 7 is a way for two runs to differ without the difference
+    being reported; ADR-0002 is the test a rule passes to live here.
+
+    Parameters
+    ----------
+    learning_rate
+        A constant ``eta``, or a `Schedule` for a step-dependent one.
+        A schedule is called with the update count.
+    """
+    if not callable(learning_rate) and learning_rate <= 0.0:
+        raise ValueError(
+            f"learning_rate={learning_rate} must be positive; a "
+            f"non-positive step ascends the objective."
+        )
+
+    def init_fn(params: Any) -> SgdState:
+        del params  # the count does not depend on the pytree
+        return SgdState(count=jnp.zeros((), jnp.int32))
+
+    def update_fn(estimate: Any, state: SgdState,
+                  params: Any = None) -> tuple[Any, SgdState]:
+        del params
+        eta = (learning_rate(state.count) if callable(learning_rate)
+               else learning_rate)
+        return pytree.scale(estimate, -eta), SgdState(count=state.count + 1)
+
+    return Optimizer(init_fn, update_fn)
+
+
+def init(optimizer: Optimizer, params: Any) -> OptState:
     """Build the initial optimizer state, to thread through the loop."""
     return optimizer.init(params)
 
 
-def apply(optimizer: GradientTransformation, params: Any, grad: Any,
+def apply(optimizer: Optimizer, params: Any, estimate: Any,
           opt_state: OptState) -> tuple[Any, OptState]:
     """Apply one optimizer step, returning ``(new_params, new_opt_state)``.
 
-    Collapses optax's ``update`` plus ``apply_updates`` into the single
-    operation this stage denotes. Each call advances the counter optax
-    schedules index on, which is what keeps a schedule aligned with the
-    privacy composition.
+    The optimizer supplies a signed increment, so this adds rather than
+    subtracts. Each call advances the count the optimizer keeps.
     """
-    updates, opt_state = optimizer.update(grad, opt_state, params)
-    return apply_updates(params, updates), opt_state
+    increment, opt_state = optimizer.update(estimate, opt_state, params)
+    return pytree.add(params, increment), opt_state

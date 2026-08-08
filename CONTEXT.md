@@ -167,6 +167,12 @@ from the same stages so the difference between them is the privacy and nothing
 else.
 _Avoid_: control, non-DP version, reference implementation
 
+**Optimizer**:
+The rule that turns a gradient estimate into a parameter update — stage 7, and
+the one stage both sides of a comparison have to choose identically for the
+comparison to mean anything.
+_Avoid_: solver, descent rule, step rule
+
 **Transform**:
 A change to a quantity that is not itself an algorithm and composes across
 several, such as a projection applied to an already-privatized gradient.

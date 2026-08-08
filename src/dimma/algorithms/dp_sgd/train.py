@@ -33,7 +33,7 @@ from dimma.core.sampling import poisson
 def train(
     per_sample_loss_fn: Callable,
     params: Any,
-    optimizer: updates.GradientTransformation,
+    optimizer: updates.Optimizer,
     x: jax.Array,
     y: jax.Array,
     key: jax.Array,
@@ -53,7 +53,7 @@ def train(
         ``(params, x_single, y_single) -> scalar``. Vectorized here
         once, outside the loop, so `jax.jit` traces a single time.
     optimizer
-        Algorithm 1 is ``optax.sgd(eta)``, or ``optax.sgd(schedule)``
+        Algorithm 1 is ``updates.sgd(eta)``, or ``updates.sgd(schedule)``
         for the ``eta_t`` subscript. Anything else departs from the
         paper and is the caller's to report.
     key, rng
@@ -77,7 +77,7 @@ def train(
     -------
     params : Any
         The trained parameters, Algorithm 1's ``theta_T``.
-    opt_state : optax.OptState
+    opt_state : updates.OptState
         The final optimizer state, so a run can be continued.
 
     Notes

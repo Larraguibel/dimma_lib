@@ -10,13 +10,14 @@ the only thing an accountant accounts for; `step` applies it, which is
 post-processing and free. Splitting there keeps what is privatized
 separable from what is done with it.
 
-`grad_fn` and `optimizer` are not valid `jax.jit` arguments - one is a
-function, the other a pair of them. Bind them once outside the loop::
+`grad_fn` and `optimizer` are *static* `jax.jit` arguments rather than
+traced ones - one is a function, the other a pair of them. Bind them
+once outside the loop::
 
     from functools import partial
 
     compiled = jax.jit(partial(
-        step.step, gradients.per_sample_grads(loss), optax.sgd(0.1),
+        step.step, gradients.per_sample_grads(loss), updates.sgd(0.1),
         lot_size=256, clip_norm=1.0, noise_multiplier=1.1,
     ))
 """
@@ -83,7 +84,7 @@ def private_gradient(
 
 def step(
     grad_fn: Callable,
-    optimizer: updates.GradientTransformation,
+    optimizer: updates.Optimizer,
     params: Any,
     opt_state: updates.OptState,
     x_batch: jax.Array,
@@ -98,9 +99,9 @@ def step(
     """One full iteration: privatize, then descend.
 
     Algorithm 1's descent is ``theta_{t+1} <- theta_t - eta_t g~_t``,
-    which is `optax.sgd`. A schedule gives the ``eta_t`` subscript;
-    any other transformation departs from the paper, which is the
-    caller's call to make and to report.
+    which is `dimma.core.updates.sgd`. A schedule gives the ``eta_t``
+    subscript; any other optimizer departs from the paper, which is
+    the caller's call to make and to report.
 
     Returns ``(params, opt_state)``. Optimizer state derived from
     ``g~_t`` is post-processing and costs no privacy budget.

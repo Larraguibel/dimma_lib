@@ -10,7 +10,6 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import numpy as np
-import optax
 import pytest
 
 from dimma.core import aggregation, clipping, gradients, noise, updates
@@ -111,7 +110,7 @@ def test_training_loop_reduces_the_loss(data):
 
     grad_fn = gradients.per_sample_grads(squared_error)
     params = {"w": jnp.zeros(3)}
-    opt = optax.sgd(0.5)
+    opt = updates.sgd(0.5)
     state = updates.init(opt, params)
 
     def full_loss(p):
