@@ -40,11 +40,11 @@ def train(
     rng: np.random.Generator,
     *,
     steps: int,
-    lot_size: int,
+    expected_batch_size: int,
     clip_norm: float,
     noise_multiplier: float,
     b_max: int | None = None,
-) -> tuple[Any, updates.OptState]:
+) -> Any:
     """Run Algorithm 1 for ``steps`` iterations.
 
     Parameters
@@ -61,24 +61,27 @@ def train(
         run: independent draws are what the sampling assumption means.
     steps
         Algorithm 1's ``T``. Steps, not epochs - privacy composes over
-        optimizer steps. One epoch is ``len(x) / lot_size`` of them.
-    lot_size
+        optimizer steps. One epoch is ``len(x) / expected_batch_size``
+        of them.
+    expected_batch_size
         Algorithm 1's ``L``. Sets the sampling rate ``q = L / len(x)``
         and is the constant the sum is divided by.
     clip_norm, noise_multiplier
         Algorithm 1's ``C`` and ``sigma``.
     b_max
         Padding cap for the drawn batch, default
-        `poisson.padded_batch_size(lot_size, len(x))`. Not a privacy
-        parameter. Passing ``len(x)`` makes it exact and unraisable at
-        the cost of an ``O(n)`` batch.
+        `poisson.padded_batch_size(expected_batch_size, len(x))`. Not a
+        privacy parameter. Passing ``len(x)`` makes it exact and
+        unraisable at the cost of an ``O(n)`` batch.
 
     Returns
     -------
     params : Any
         The trained parameters, Algorithm 1's ``theta_T``.
-    opt_state : updates.OptState
-        The final optimizer state, so a run can be continued.
+
+    No optimizer state is returned. `train` accepts none, so it cannot
+    consume what it would hand back, and a caller who resumed from it
+    would replay this run's noise stream from the start.
 
     Notes
     -----
@@ -95,19 +98,20 @@ def train(
         instead.
     """
     n = x.shape[0]
-    if not 0 < lot_size <= n:
+    if not 0 < expected_batch_size <= n:
         raise ValueError(
-            f"lot_size={lot_size} must be in (0, n] with n={n}; the "
-            f"sampling rate q = lot_size / n is a probability."
+            f"expected_batch_size={expected_batch_size} must be in "
+            f"(0, n] with n={n}; the sampling rate "
+            f"q = expected_batch_size / n is a probability."
         )
     if b_max is None:
-        b_max = poisson.padded_batch_size(lot_size, n)
+        b_max = poisson.padded_batch_size(expected_batch_size, n)
 
-    q = lot_size / n
+    q = expected_batch_size / n
     grad_fn = gradients.per_sample_grads(per_sample_loss_fn)
     compiled = jax.jit(partial(
         _step.step, grad_fn, optimizer,
-        lot_size=lot_size, clip_norm=clip_norm,
+        expected_batch_size=expected_batch_size, clip_norm=clip_norm,
         noise_multiplier=noise_multiplier,
     ))
 
@@ -119,4 +123,4 @@ def train(
             params, opt_state, x[indices], y[indices],
             jnp.asarray(mask), subkey,
         )
-    return params, opt_state
+    return params

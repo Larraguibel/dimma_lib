@@ -4,7 +4,7 @@ Stage 1 is not here. Poisson subsampling has data-dependent cardinality
 and runs on the host, so the loop draws the batch and passes this module
 a fixed-shape batch plus its mask. Everything in this module compiles.
 
-The two functions are one seam apart. `private_gradient` produces
+The two functions are one seam apart. `privatized_gradient` produces
 ``g~_t``, which is the only thing the mechanism releases and therefore
 the only thing an accountant accounts for; `step` applies it, which is
 post-processing and free. Splitting there keeps what is privatized
@@ -18,7 +18,7 @@ once outside the loop::
 
     compiled = jax.jit(partial(
         step.step, gradients.per_sample_grads(loss), updates.sgd(0.1),
-        lot_size=256, clip_norm=1.0, noise_multiplier=1.1,
+        expected_batch_size=256, clip_norm=1.0, noise_multiplier=1.1,
     ))
 """
 
@@ -31,7 +31,7 @@ import jax
 from dimma.core import aggregation, clipping, noise, pytree, updates
 
 
-def private_gradient(
+def privatized_gradient(
     grad_fn: Callable,
     params: Any,
     x_batch: jax.Array,
@@ -39,7 +39,7 @@ def private_gradient(
     mask: jax.Array,
     key: jax.Array,
     *,
-    lot_size: float,
+    expected_batch_size: float,
     clip_norm: float,
     noise_multiplier: float,
 ):
@@ -64,7 +64,7 @@ def private_gradient(
         The padded batch, leading axis ``b_max``.
     mask
         Shape ``(b_max,)``, 1.0 for a real example and 0.0 for padding.
-    lot_size
+    expected_batch_size
         Algorithm 1's ``L``: the *expected* lot size ``q * N``, a
         constant. Not the leading axis length and not ``mask.sum()``,
         both of which are data-dependent and would leak.
@@ -79,7 +79,7 @@ def private_gradient(
     clipped = clipping.per_sample_clip(per_sample, clip_norm)
     summed = aggregation.sum_over_batch(clipped, mask=mask)
     perturbed = noise.add_gaussian(summed, key, noise_multiplier * clip_norm)
-    return pytree.scale(perturbed, 1.0 / lot_size)
+    return pytree.scale(perturbed, 1.0 / expected_batch_size)
 
 
 def step(
@@ -92,7 +92,7 @@ def step(
     mask: jax.Array,
     key: jax.Array,
     *,
-    lot_size: float,
+    expected_batch_size: float,
     clip_norm: float,
     noise_multiplier: float,
 ) -> tuple[Any, updates.OptState]:
@@ -106,9 +106,9 @@ def step(
     Returns ``(params, opt_state)``. Optimizer state derived from
     ``g~_t`` is post-processing and costs no privacy budget.
     """
-    grad = private_gradient(
+    grad = privatized_gradient(
         grad_fn, params, x_batch, y_batch, mask, key,
-        lot_size=lot_size, clip_norm=clip_norm,
+        expected_batch_size=expected_batch_size, clip_norm=clip_norm,
         noise_multiplier=noise_multiplier,
     )
     return updates.apply(optimizer, params, grad, opt_state)
