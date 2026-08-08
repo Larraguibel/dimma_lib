@@ -30,12 +30,21 @@ from dimma.core import gradients, updates
 from dimma.core.sampling import poisson
 
 
-def train(per_sample_loss_fn: Callable, params: Any,
-          optimizer: updates.GradientTransformation, x: jax.Array,
-          y: jax.Array, key: jax.Array, rng: np.random.Generator, *,
-          steps: int, lot_size: int, clip_norm: float,
-          noise_multiplier: float,
-          b_max: int | None = None) -> tuple[Any, updates.OptState]:
+def train(
+    per_sample_loss_fn: Callable,
+    params: Any,
+    optimizer: updates.GradientTransformation,
+    x: jax.Array,
+    y: jax.Array,
+    key: jax.Array,
+    rng: np.random.Generator,
+    *,
+    steps: int,
+    lot_size: int,
+    clip_norm: float,
+    noise_multiplier: float,
+    b_max: int | None = None,
+) -> tuple[Any, updates.OptState]:
     """Run Algorithm 1 for ``steps`` iterations.
 
     Parameters

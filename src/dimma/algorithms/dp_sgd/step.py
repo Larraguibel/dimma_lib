@@ -30,10 +30,18 @@ import jax
 from dimma.core import aggregation, clipping, noise, pytree, updates
 
 
-def private_gradient(grad_fn: Callable, params: Any, x_batch: jax.Array,
-                     y_batch: jax.Array, mask: jax.Array, key: jax.Array, *,
-                     lot_size: float, clip_norm: float,
-                     noise_multiplier: float):
+def private_gradient(
+    grad_fn: Callable,
+    params: Any,
+    x_batch: jax.Array,
+    y_batch: jax.Array,
+    mask: jax.Array,
+    key: jax.Array,
+    *,
+    lot_size: float,
+    clip_norm: float,
+    noise_multiplier: float,
+):
     """Algorithm 1's ``g~_t``, the privatized gradient estimate.
 
     Stages 3 through 6, in the paper's order::
@@ -73,11 +81,20 @@ def private_gradient(grad_fn: Callable, params: Any, x_batch: jax.Array,
     return pytree.scale(perturbed, 1.0 / lot_size)
 
 
-def step(grad_fn: Callable, optimizer: updates.GradientTransformation,
-         params: Any, opt_state: updates.OptState, x_batch: jax.Array,
-         y_batch: jax.Array, mask: jax.Array, key: jax.Array, *,
-         lot_size: float, clip_norm: float,
-         noise_multiplier: float) -> tuple[Any, updates.OptState]:
+def step(
+    grad_fn: Callable,
+    optimizer: updates.GradientTransformation,
+    params: Any,
+    opt_state: updates.OptState,
+    x_batch: jax.Array,
+    y_batch: jax.Array,
+    mask: jax.Array,
+    key: jax.Array,
+    *,
+    lot_size: float,
+    clip_norm: float,
+    noise_multiplier: float,
+) -> tuple[Any, updates.OptState]:
     """One full iteration: privatize, then descend.
 
     Algorithm 1's descent is ``theta_{t+1} <- theta_t - eta_t g~_t``,
