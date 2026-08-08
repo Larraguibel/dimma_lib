@@ -14,7 +14,7 @@ it?* If neither has an answer, it belongs with its consumer.
 Describing what a sampler samples, or which accounting assumption a
 primitive satisfies, is factual and allowed. Computing an epsilon,
 calibrating a scale to a budget, or calling a transformation free are
-claims, and belong to the accounting and mechanism layers.
+claims, and belong to the accounting and transform layers.
 
 The stages
 ----------

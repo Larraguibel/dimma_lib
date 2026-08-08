@@ -38,10 +38,12 @@ dimma covers four fronts, all sharing the pipeline above.
 privacy-free counterpart of something dimma implements privately, built from the
 same stages, so that "what did privacy cost here" is a controlled question.
 
-**Mechanisms.** Transformations that are not algorithms and compose across them —
-for example the ℓ₁-ball projection applied to an already-noised gradient
-estimate as post-processing. Mechanisms are a separate axis from algorithms: one
-mechanism can apply to several algorithms, and an algorithm can use several.
+**Transforms.** Changes to a quantity that are not algorithms and compose across
+them — for example the ℓ₁-ball projection applied to an already-privatized
+gradient as post-processing. Transforms are a separate axis from algorithms: one
+transform can apply to several algorithms, and an algorithm can use several. Not
+"mechanisms", which the literature reserves for a complete map carrying its own
+privacy analysis; a transform carries none.
 
 Three layers sit underneath all four.
 
