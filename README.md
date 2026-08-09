@@ -73,6 +73,7 @@ the rest is being ported in.
 ```
 src/dimma/
 ├── accounting/              where the privacy claims live
+│   ├── lipschitz.py         L₀, L₁ and the step size, from an enforced bound
 │   └── sampling.py          subsampled-Gaussian ε, via dp-accounting
 ├── algorithms/              one package per algorithm
 │   ├── dp_sgd/               classical DP-SGD (Abadi et al., 2016)
@@ -93,7 +94,8 @@ src/dimma/
 │   ├── pytree.py            pytree vector-space ops
 │   └── projection.py        ℓ₁-ball geometry
 ├── datasets/                loaders; no algorithm imports these
-│   └── criteo.py             Criteo 1M — columns × preprocessing, four ways
+│   ├── criteo.py             Criteo 1M — columns × preprocessing, four ways
+│   └── preprocessing.py      maps loaders compose; the per-record norm cap
 └── models/                  reference models; no algorithm imports these
     ├── logreg.py             logistic regression — one linear layer
     └── losses.py             sigmoid BCE, per-sample and batch

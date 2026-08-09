@@ -37,6 +37,7 @@ from dimma.datasets._attribution import emit_once
 from dimma.datasets._cache import get_cache_dir
 from dimma.datasets._download import download_with_checksum
 from dimma.datasets.base import TabularSplit, arrays_to_split
+from dimma.datasets.preprocessing import cap_feature_norms
 
 try:
     import pandas as pd
@@ -146,6 +147,7 @@ def load_criteo(
     test_fraction: float = 0.2,
     seed: int = 0,
     device: str = "cpu",
+    feature_norm_bound: float | None = None,
 ) -> TabularSplit:
     """Load the Criteo 1M sample as a train/test split.
 
@@ -177,6 +179,14 @@ def load_criteo(
         arguments — so the four modes are directly comparable.
     device : str, default "cpu"
         Target JAX device: ``"cpu"``, ``"gpu"``, or ``"cuda"``.
+    feature_norm_bound : float | None, default None
+        With a value, every row is rescaled to ``l_2`` norm at most that
+        much, last in the chain and one record at a time, and the bound
+        is recorded in ``metadata["feature_norm_bound"]``. It is what
+        `dimma.accounting.lipschitz` turns into a Lipschitz constant, so
+        it must be chosen before the data is looked at rather than read
+        off it; ADR-0012 records why, and what a wider one costs. With
+        ``None`` no cap is applied and no constant is implied.
 
     Returns
     -------
@@ -186,6 +196,7 @@ def load_criteo(
         ``"license"``, and ``"source"``. With ``preprocess=True`` it also
         carries ``"feature_means"`` and ``"feature_stds"``, the arrays the
         columns were standardized by; with ``features="all"`` it carries
+        ``"feature_norm_bound"`` when one was enforced;
         ``"int_cols"`` and ``"cat_cols"``, and when both hold,
         ``"n_categories"`` — the distinct IDs each ``C*`` column had in
         the training split, before frequency encoding collapsed it to one
@@ -194,7 +205,8 @@ def load_criteo(
     Raises
     ------
     ValueError
-        If ``features`` is not ``"numeric"`` or ``"all"``.
+        If ``features`` is not ``"numeric"`` or ``"all"``, or if
+        ``feature_norm_bound`` is not finite and positive.
     FileNotFoundError
         If ``download=False`` and the file is not in the cache.
     RuntimeError
@@ -243,6 +255,11 @@ def load_criteo(
     y_test = test_df[LABEL_COL].to_numpy(dtype=np.float32)
 
     description = _DESCRIPTIONS[(features, preprocess)]
+    if feature_norm_bound is not None:
+        description += (
+            f" Every row then rescaled to l2 norm at most "
+            f"{feature_norm_bound}, one record at a time."
+        )
     metadata: dict = {
         "features": features,
         "preprocess": preprocess,
@@ -281,7 +298,17 @@ def load_criteo(
         metadata["feature_means"] = means
         metadata["feature_stds"] = stds
 
-    emit_once(f"criteo:{features}:{preprocess}", f"criteo: {description}")
+    if feature_norm_bound is not None:
+        # Last, after every fitted map: a map that rescales columns does
+        # not preserve a bound applied before it.
+        x_train, bound = cap_feature_norms(x_train, feature_norm_bound)
+        x_test, _ = cap_feature_norms(x_test, feature_norm_bound)
+        metadata["feature_norm_bound"] = bound
+
+    emit_once(
+        f"criteo:{features}:{preprocess}:{feature_norm_bound}",
+        f"criteo: {description}",
+    )
 
     return arrays_to_split(
         x_train, y_train, x_test, y_test, device=device, metadata=metadata
