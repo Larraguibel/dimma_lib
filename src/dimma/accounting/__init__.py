@@ -28,6 +28,6 @@ line says which analysis is being invoked:
     from dimma.accounting.sampling import poisson_gaussian_epsilon
 """
 
-from dimma.accounting import sampling
+from dimma.accounting import sampling, spiderboost
 
-__all__ = ["sampling"]
+__all__ = ["sampling", "spiderboost"]
