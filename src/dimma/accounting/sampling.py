@@ -85,13 +85,11 @@ def poisson_gaussian_epsilon(sampling_probability: float,
     target_delta
         The ``delta`` at which epsilon is read off.
     method
-        ``"rdp"`` (default) is the modern form of the moments accountant
-        Abadi et al. introduced, so it is the bound faithful to the
-        paper. ``"pld"`` is materially tighter for this mechanism,
-        typically 30-40% lower. Hold it fixed across a comparison and
-        report which was used: measuring DP-SGD under the looser bound
-        while a non-classical method uses a bespoke tight one flatters
-        the latter.
+        ``"rdp"`` (default) or ``"pld"``; ADR-0011 records why. PLD is
+        tighter for this mechanism by an amount that depends strongly on
+        the sampling rate and the budget, so the two are not
+        interchangeable in a reported result. Hold it fixed across a
+        comparison and report which was used.
 
     Returns
     -------
