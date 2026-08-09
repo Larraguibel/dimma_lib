@@ -56,9 +56,9 @@ def logreg_bce_constants(
     has_bias : bool
         Whether the model carries a bias, which augments the feature
         vector with a constant 1 and so raises the squared norm by one.
-        Keyword-only and without a default: it moves both constants by a
-        factor of two, and a wrong one reports an epsilon that is simply
-        false.
+        Keyword-only and without a default: at ``R = 1`` it is worth a
+        factor of two in the smoothness constant and in the step size,
+        and a wrong one reports an epsilon that is simply false.
 
     Returns
     -------

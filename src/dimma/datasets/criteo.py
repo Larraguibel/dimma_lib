@@ -196,11 +196,12 @@ def load_criteo(
         ``"license"``, and ``"source"``. With ``preprocess=True`` it also
         carries ``"feature_means"`` and ``"feature_stds"``, the arrays the
         columns were standardized by; with ``features="all"`` it carries
-        ``"feature_norm_bound"`` when one was enforced;
         ``"int_cols"`` and ``"cat_cols"``, and when both hold,
         ``"n_categories"`` — the distinct IDs each ``C*`` column had in
         the training split, before frequency encoding collapsed it to one
-        float.
+        float. Whatever ``features`` and ``preprocess`` are, a
+        ``feature_norm_bound`` that was enforced is carried back under
+        that name.
 
     Raises
     ------
@@ -299,8 +300,8 @@ def load_criteo(
         metadata["feature_stds"] = stds
 
     if feature_norm_bound is not None:
-        # Last, after every fitted map: a map that rescales columns does
-        # not preserve a bound applied before it.
+        # Last, after every fitted map. ADR-0012 records why the order
+        # is load-bearing rather than incidental.
         x_train, bound = cap_feature_norms(x_train, feature_norm_bound)
         x_test, _ = cap_feature_norms(x_test, feature_norm_bound)
         metadata["feature_norm_bound"] = bound
