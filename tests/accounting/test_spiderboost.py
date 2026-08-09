@@ -15,7 +15,7 @@ import pytest
 
 from dimma.accounting import spiderboost
 from dimma.accounting.sampling import (
-    PoissonGaussianReleases,
+    PoissonGaussianSchedule,
     composed_poisson_gaussian_epsilon,
     poisson_gaussian_epsilon,
 )
@@ -172,8 +172,8 @@ def test_epsilon_matches_composing_the_two_schedules_by_hand():
     multiplier = s.anchor_noise_scale * b1 / CONSTANTS["lipschitz_constant"]
 
     assert spent(s) == composed_poisson_gaussian_epsilon(
-        [PoissonGaussianReleases(b1 / n, multiplier, anchors),
-         PoissonGaussianReleases(b2 / n, multiplier, variations)],
+        [PoissonGaussianSchedule(b1 / n, multiplier, anchors),
+         PoissonGaussianSchedule(b2 / n, multiplier, variations)],
         DELTA,
     )
 
