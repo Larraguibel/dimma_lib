@@ -67,8 +67,8 @@ and the algorithms never import the models.
 
 ## Layout
 
-`core`, the dataset loaders, and the first two algorithms; the rest is being
-ported in.
+`core`, the dataset loaders, the reference model, and the first two algorithms;
+the rest is being ported in.
 
 ```
 src/dimma/
@@ -92,8 +92,11 @@ src/dimma/
 │   ├── updates.py           stage 7 — sgd, and the seam optax also fits
 │   ├── pytree.py            pytree vector-space ops
 │   └── projection.py        ℓ₁-ball geometry
-└── datasets/                loaders; no algorithm imports these
-    └── criteo.py             Criteo 1M — columns × preprocessing, four ways
+├── datasets/                loaders; no algorithm imports these
+│   └── criteo.py             Criteo 1M — columns × preprocessing, four ways
+└── models/                  reference models; no algorithm imports these
+    ├── logreg.py             logistic regression — one linear layer
+    └── losses.py             sigmoid BCE, per-sample and batch
 
 tests/                       mirrors src/dimma/
 docs/agents/                 agent-facing context, not published
