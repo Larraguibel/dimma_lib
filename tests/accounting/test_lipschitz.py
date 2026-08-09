@@ -66,7 +66,7 @@ def test_the_step_size_is_theorem_b3s(bound, has_bias):
     )
 
 
-def test_the_bias_flag_moves_both_constants():
+def test_the_bias_flag_is_worth_two_in_the_smoothness_at_the_unit_ball():
     """Silently defaulting it would halve or double every noise scale."""
     with_bias = logreg_bce_constants(1.0, has_bias=True)
     without = logreg_bce_constants(1.0, has_bias=False)
@@ -74,6 +74,28 @@ def test_the_bias_flag_moves_both_constants():
         2.0 * without.smoothness_constant
     )
     assert with_bias.step_size == pytest.approx(without.step_size / 2.0)
+
+
+def test_the_bias_flag_is_not_worth_two_in_the_lipschitz_constant():
+    """The two constants do not move together: L0 goes up by sqrt(2)
+    where L1 goes up by 2. Pinned because it is an easy thing to say
+    loosely and a false thing to have said."""
+    with_bias = logreg_bce_constants(1.0, has_bias=True)
+    without = logreg_bce_constants(1.0, has_bias=False)
+    assert with_bias.lipschitz_constant == pytest.approx(
+        math.sqrt(2.0) * without.lipschitz_constant
+    )
+
+
+def test_the_bias_flag_matters_less_as_the_bound_widens():
+    """Nor is the factor of two a constant of the flag: the augmenting
+    1 is a smaller share of R^2 + 1 the larger R is."""
+    narrow = logreg_bce_constants(1.0, has_bias=True).smoothness_constant / (
+        logreg_bce_constants(1.0, has_bias=False).smoothness_constant)
+    wide = logreg_bce_constants(10.0, has_bias=True).smoothness_constant / (
+        logreg_bce_constants(10.0, has_bias=False).smoothness_constant)
+    assert narrow == pytest.approx(2.0)
+    assert wide < 1.02
 
 
 def test_the_bias_flag_has_to_be_said():

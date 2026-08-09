@@ -10,6 +10,8 @@ row.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -289,6 +291,20 @@ def test_the_bound_reaches_the_metadata(criteo_root):
     assert split.metadata["feature_norm_bound"] == 0.5
 
 
+@pytest.mark.parametrize("features,preprocess", MODES)
+def test_the_bound_is_recorded_whatever_the_other_axes_are(
+    criteo_root, features, preprocess
+):
+    """It is not conditional on `features` or on `preprocess`, which is
+    what the docstring promises."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        split = load_criteo(features=features, preprocess=preprocess,
+                            root=criteo_root, download=False,
+                            feature_norm_bound=1.0)
+    assert split.metadata["feature_norm_bound"] == 1.0
+
+
 def test_the_cap_goes_after_the_fitted_maps(criteo_root):
     """Capping first and standardizing after would leave the largest
     norm far above R, and the accountant would never know."""
@@ -308,7 +324,10 @@ def test_capping_before_standardizing_would_not_have_bounded_anything(
     raw = np.asarray(load(criteo_root, "numeric", True).x_train)
     wrong_order, _ = cap_feature_norms(raw, 1.0)
     restandardized = (wrong_order - wrong_order.mean(0)) / wrong_order.std(0)
-    assert np.linalg.norm(restandardized, axis=1).max() > 1.0
+    # Not marginally over: thirteen columns rescaled independently land
+    # near sqrt(13), so the accountant would be handed a constant about
+    # a quarter of the truth.
+    assert np.linalg.norm(restandardized, axis=1).max() > 3.0
 
 
 def test_the_bound_is_in_the_recorded_preprocessing(criteo_root):

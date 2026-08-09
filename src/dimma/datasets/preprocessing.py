@@ -1,10 +1,7 @@
 """Maps a loader composes, shared across datasets. Names no dataset.
 
-Every function here says whether it reads across records, because that
-is what decides whether it costs privacy budget: a map fitted on the
-data is an unaccounted access and inherits the caveat ADR-0008 records,
-a per-record map is free. ADR-0012 records the decision and the
-reasoning; neither is restated below.
+Every function here says whether it reads across records. ADR-0012
+rests on that difference and records what it costs either way.
 """
 
 from __future__ import annotations
@@ -19,8 +16,11 @@ def cap_feature_norms(
 ) -> tuple[np.ndarray, float]:
     """Rescale each row to ``l_2`` norm at most ``bound``. Per record.
 
-    Reads no aggregate: row ``i`` of the result depends on row ``i`` of
-    ``x`` and on ``bound``, and on nothing else.
+    Reads no aggregate on the way to the result: row ``i`` of the output
+    depends on row ``i`` of ``x`` and on ``bound``. What it does read
+    across records is whether any row's norm came out non-finite, which
+    it warns about without quantifying; ADR-0012 records why that one
+    exception is drawn, and how narrowly.
 
     Parameters
     ----------

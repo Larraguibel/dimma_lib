@@ -119,6 +119,18 @@ records it rescaled, or the norm distribution behind them, is data-dependent,
 and handing one back is an unaccounted release through the back door. The bound
 is not such a statistic: it is an argument, fixed before the data was touched.
 
+One signal does leave it, and it is an exception to the paragraph above rather
+than an instance of it. A row whose norm is not finite cannot be brought inside
+the ball, so for that row the bound is believed and not enforced — the silent
+falsehood this whole decision exists to prevent — and the map says so. That is
+a data-dependent bit going out through the warnings channel, bought in exchange
+for the enforced bound remaining a true statement about the data. It is drawn
+as narrowly as the purpose allows: existence and never a count, so that one
+such row and a thousand are indistinguishable, and a warning rather than a
+refusal, so that a caller preprocessing their own way is told rather than
+blocked. Anything wider — how many, which rows, how far out — is the back door
+again and stays shut.
+
 A loader takes the bound as an argument, alongside its other axes:
 `load_criteo(..., feature_norm_bound=...)`, defaulting to no cap. ADR-0008
 makes loading modes independent parameters rather than preset names, and this
@@ -138,8 +150,11 @@ picking an `R` above it is the unaccounted access this ADR exists to remove: an
 `R` arrived at that way is a fitted `L0`, no more honest for being generous, and
 it voids the argument above rather than stretching it. The defensible sources
 are a value fixed a priori, public knowledge about the domain, or a non-private
-exploratory run whose ε is declared invalid — and which of those it was is
-recorded with the run.
+exploratory run whose ε is declared invalid — and which of those it was belongs
+beside the reported ε. That is an obligation on whoever reports the number, not
+something the library can check: `metadata` records the bound that was enforced
+and has no way to record where it came from, which leaves `R`'s provenance
+exactly where ADR-0008 leaves the fitted statistics.
 
 This does not make the guarantee unconditional. It moves one premise from the
 caller's word to dimma's code, and the remaining looseness is real: `L0` is
