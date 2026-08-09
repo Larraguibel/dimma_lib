@@ -6,9 +6,7 @@ algorithms compared against each other are compared on the same one.
 
 A model here is a pair of plain functions over a plain JAX pytree —
 ``init_params`` and a ``forward`` that maps one feature vector to one
-scalar. It becomes stage 2 of the pipeline by being called inside the
-per-sample loss the caller hands to an algorithm; `dimma.models.losses`
-supplies that loss for the models shipped here.
+scalar. `dimma.models.losses` supplies the matching per-sample loss.
 
 Nothing is re-exported here; import from the module that owns what you
 need::

@@ -2,11 +2,9 @@
 
 `per_sample_bce_loss` is what an algorithm is handed: it takes one
 example, which is what makes a per-sample gradient definable at all.
-`batch_bce_loss` is a number to report, not something to differentiate -
-`dimma.core.gradients` builds every gradient function the pipeline needs
-out of the per-sample form, private and non-private alike.
+`batch_bce_loss` is a number to report, not something to differentiate.
 
-Both evaluate `_stable_bce`, so there is one objective defined once.
+Both evaluate `_stable_bce`, so the loss is written down once.
 """
 
 from __future__ import annotations
@@ -24,7 +22,7 @@ def _stable_bce(logit: jax.Array, y: jax.Array) -> jax.Array:
     ``-[y*log(sigmoid(z)) + (1-y)*log(1-sigmoid(z))]`` rearranged so
     that the only exponential taken has a non-positive argument. In
     float32 the direct form loses the leading digits of
-    ``1 - sigmoid(z)`` from ``|z|`` of about 14 and takes ``log(0)``
+    ``1 - sigmoid(z)`` from ``|z|`` of about 15 and takes ``log(0)``
     from about 17, so it returns a plausible wrong number before it
     returns ``inf`` or ``nan`` - both well short of the 88 where
     ``exp`` itself overflows. This form is finite across the whole

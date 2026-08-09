@@ -59,11 +59,29 @@ def test_stable_bce_stays_accurate_where_the_direct_form_does_not(z, y):
     assert jnp.allclose(got, reference_bce(z, y), rtol=1e-6)
 
 
+def relative_error(z: float) -> float:
+    """How far the direct form has drifted from the true loss at ``y = 0``."""
+    got = float(naive_bce(jnp.array(z), jnp.array(0.0)))
+    reference = reference_bce(z, 0.0)
+    return abs(got - reference) / reference
+
+
+def test_the_direct_form_holds_up_to_a_logit_of_fourteen():
+    """The lower end of the window, so the docstring's ``15`` is pinned.
+
+    Both ends matter: quoting the threshold too low would make the
+    rearrangement look more urgent than it is, and too high would leave
+    a band where the direct form is quietly wrong and nobody looks.
+    """
+    assert relative_error(14.0) < 1e-3
+    assert relative_error(15.0) > 1e-2
+
+
 def test_the_direct_form_goes_wrong_before_it_goes_non_finite():
     """Why the rearrangement is not merely defensive.
 
     In float32 ``1 - sigmoid(z)`` loses its leading digits from around
-    ``|z| = 14`` and hits exactly 0 around 17, so the direct form
+    ``|z| = 15`` and hits exactly 0 around 17, so the direct form
     returns a plausible wrong number first and ``inf`` / ``nan`` only
     afterwards. A silently wrong loss is the worse of the two.
     """
