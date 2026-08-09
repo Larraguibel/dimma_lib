@@ -119,6 +119,28 @@ records it rescaled, or the norm distribution behind them, is data-dependent,
 and handing one back is an unaccounted release through the back door. The bound
 is not such a statistic: it is an argument, fixed before the data was touched.
 
+A loader takes the bound as an argument, alongside its other axes:
+`load_criteo(..., feature_norm_bound=...)`, defaulting to no cap. ADR-0008
+makes loading modes independent parameters rather than preset names, and this
+is one more of them. A preset would fail in exactly the way that ADR describes
+— the half of the behaviour that does not fit in the name goes missing — except
+that here the missing half is the entire privacy argument.
+
+`R` is therefore a hyperparameter, and it is not a free one. `L0` grows like
+`R`; `L1`, and so at a fixed budget the noise on the variance-reduction step,
+grows like `R²`; and the step size Theorem B.3 prescribes, `1/(2·L1)`, shrinks
+like `1/R²`. Doubling `R` to leave more records intact therefore roughly
+quadruples that noise and quarters the distance each step travels. It buys
+fidelity to the data with the thing the run is for.
+
+What it may not be chosen by is the data. Reading the norm distribution and
+picking an `R` above it is the unaccounted access this ADR exists to remove: an
+`R` arrived at that way is a fitted `L0`, no more honest for being generous, and
+it voids the argument above rather than stretching it. The defensible sources
+are a value fixed a priori, public knowledge about the domain, or a non-private
+exploratory run whose ε is declared invalid — and which of those it was is
+recorded with the run.
+
 This does not make the guarantee unconditional. It moves one premise from the
 caller's word to dimma's code, and the remaining looseness is real: `L0` is
 attained only as the logit diverges and `L1`'s `1/4` only at a logit of zero, so
