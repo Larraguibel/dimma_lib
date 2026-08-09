@@ -18,9 +18,7 @@ sensitivity bound does not cover all invalidate the number.
 Releases need not share a rate or a multiplier. A method that releases
 on two schedules composes as a *sequence* of these events, which is
 `composed_poisson_gaussian_epsilon`; the single-schedule functions are
-that with one entry. Composing jointly is not a nicety — summing the
-epsilon of each schedule separately is basic composition and costs
-46-68% more epsilon on ADR-0010's worked configuration.
+that with one entry.
 
 Adjacency is add-or-remove-one, which is what subsampling amplification
 is stated for. Never accounted: hyperparameter search across runs, and
@@ -60,8 +58,8 @@ _SEARCH_INITIAL_GUESS = 1.0
 _SEARCH_UPPER_BOUND = 1e4
 
 
-class PoissonGaussianReleases(NamedTuple):
-    """A run of releases sharing a rate, a multiplier and a schedule.
+class PoissonGaussianSchedule(NamedTuple):
+    """A run of releases sharing one rate and one multiplier.
 
     The unit `composed_poisson_gaussian_epsilon` composes. Field names
     match `poisson_gaussian_epsilon`'s parameters, because one entry of
@@ -113,7 +111,7 @@ def _watching_rdp_orders():
         logger.propagate = propagate
 
 
-def _validate(releases: Sequence[PoissonGaussianReleases],
+def _validate(releases: Sequence[PoissonGaussianSchedule],
               target_delta: float, method: Method, *,
               qualify: bool = True) -> None:
     """Reject nonsense before it becomes a number someone reports.
@@ -150,12 +148,11 @@ def _bracket(epsilon_at: Callable[[float], float], target_epsilon: float,
     """Two multipliers the answer lies between, found by doubling.
 
     Expands outward from a guess rather than handing the root-finder
-    the whole plausible range. Two reasons, and the second is not an
-    optimisation: `brentq`'s tolerance is absolute, so a bracket
-    spanning decades is paid for in iterations; and the extreme ends
-    are where an accountant is slowest - PLD's discretisation grows
-    without bound as the multiplier shrinks - so a search that never
-    evaluates there unless it must is the one that terminates.
+    the whole plausible range: `brentq`'s tolerance is absolute, so a
+    bracket spanning decades is paid for in iterations, and PLD's
+    discretisation grows without bound as the multiplier shrinks, so a
+    search that evaluates the small end only when it must is the one
+    that terminates.
 
     Epsilon is monotone decreasing in the multiplier, which is what
     makes doubling sound.
@@ -195,7 +192,7 @@ def _accountant(method: Method):
 
 
 def composed_poisson_gaussian_epsilon(
-        releases: Sequence[PoissonGaussianReleases], target_delta: float, *,
+        releases: Sequence[PoissonGaussianSchedule], target_delta: float, *,
         method: Method = "rdp") -> float:
     """Epsilon for several Poisson-subsampled Gaussian schedules at once.
 
@@ -203,13 +200,8 @@ def composed_poisson_gaussian_epsilon(
     releases at more than one rate, multiplier or schedule passes one
     entry per schedule and gets the cost of all of them composed in a
     single accountant. `dimma.accounting.spiderboost` is the caller
-    that needs it; ADR-0010 records why.
-
-    Compose here rather than summing per-schedule epsilons. Both are
-    sound, but summing is basic composition and gives back far more
-    than it saves - 46-68% more epsilon on ADR-0010's configuration,
-    a penalty that survives choosing the most favourable split of
-    ``target_delta`` between the schedules.
+    that needs it; ADR-0010 records why, and what composing buys over
+    summing the schedules' epsilons separately.
 
     Order does not matter: the schedules are non-adaptive with respect
     to each other, each one's privacy curve being fixed before the run.
@@ -217,7 +209,7 @@ def composed_poisson_gaussian_epsilon(
     Parameters
     ----------
     releases
-        One `PoissonGaussianReleases` per schedule. Entries with
+        One `PoissonGaussianSchedule` each. Entries with
         ``num_compositions == 0`` cost nothing and are dropped, so an
         empty sequence - or one describing no releases at all - is 0.0.
     target_delta
@@ -237,15 +229,13 @@ def composed_poisson_gaussian_epsilon(
     -----
     UserWarning
         When the Renyi accountant drops an order it could not compute.
-        Epsilon is a minimum over orders, so dropping one can only
-        raise it - the number stays sound, and stays an upper bound,
-        but it is looser than the method can give and the parameters
-        are in a regime worth knowing about.
+        The epsilon stays a valid upper bound, but a looser one than
+        the method can give.
     """
     return _composed(releases, target_delta, method, qualify=True)
 
 
-def _composed(releases: Sequence[PoissonGaussianReleases],
+def _composed(releases: Sequence[PoissonGaussianSchedule],
               target_delta: float, method: Method, *,
               qualify: bool, warn: bool = True) -> float:
     """`composed_poisson_gaussian_epsilon`, minus the naming of blame.
@@ -293,7 +283,7 @@ def _epsilon(sampling_probability: float, noise_multiplier: float,
              method: Method) -> float:
     """Compose the subsampled Gaussian event and read off epsilon."""
     return _composed(
-        [PoissonGaussianReleases(sampling_probability, noise_multiplier,
+        [PoissonGaussianSchedule(sampling_probability, noise_multiplier,
                                  num_compositions)],
         target_delta, method, qualify=False,
     )
@@ -373,7 +363,7 @@ def poisson_gaussian_truncated_epsilon(sampling_probability: float,
 
 def calibrate_noise_multiplier(
         releases_from_multiplier: Callable[
-            [float], Sequence[PoissonGaussianReleases]],
+            [float], Sequence[PoissonGaussianSchedule]],
         target_epsilon: float, target_delta: float, *,
         method: Method = "rdp") -> float:
     """The smallest shared noise multiplier meeting a privacy budget.
@@ -402,10 +392,8 @@ def calibrate_noise_multiplier(
     target_delta
         The ``delta`` the budget is stated at.
     method
-        ``"rdp"`` (default) or ``"pld"``; ADR-0011 records why. The
-        choice moves the answer: RDP needs a few percent more noise at
-        loose budgets and around a third more at ``epsilon = 1`` on a
-        large dataset. Calibrate and report under the same one.
+        ``"rdp"`` (default) or ``"pld"``; ADR-0011 records why, and
+        what the choice costs. Calibrate and report under the same one.
 
     Returns
     -------
@@ -418,10 +406,8 @@ def calibrate_noise_multiplier(
         If the budget is not positive, if it is so loose that no
         multiplier is meaningfully the smallest sufficient one, or if
         no multiplier meets it at all. That last is reachable under
-        ``"rdp"`` at a very small target: epsilon there is a minimum
-        over a finite grid of Renyi orders, which floors it at
-        ``log(1/delta) / (max_order - 1)`` however much noise is
-        added.
+        ``"rdp"`` at a very small target, for the reason the error
+        gives: epsilon there floors above zero.
 
     Warns
     -----
@@ -443,7 +429,7 @@ def calibrate_noise_multiplier(
         return _composed(releases_from_multiplier(multiplier), target_delta,
                          method, qualify=True, warn=False)
 
-    def _charged(multiplier: float) -> list[PoissonGaussianReleases]:
+    def _charged(multiplier: float) -> list[PoissonGaussianSchedule]:
         releases = releases_from_multiplier(multiplier)
         _validate(releases, target_delta, method)
         charged = [r for r in releases if r.num_compositions > 0]

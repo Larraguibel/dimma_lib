@@ -4,12 +4,10 @@ Accounts `dimma.algorithms.spiderboost`. This module travels with that
 algorithm and is not general-purpose, per the membership rule in
 `dimma.accounting`. What is *not* bespoke here is the mechanism: both
 branches are ordinary Poisson-subsampled Gaussian releases, composed by
-`sampling.composed_poisson_gaussian_epsilon`. ADR-0010 records why, and
-the consequence worth keeping in view is that a comparison against
-DP-SGD is not also a comparison between a standard bound and a bespoke
-one. What this module owns is the *mapping*: which two schedules
-Algorithm 2 runs, and how the paper's three noise scales relate to the
-single multiplier they share.
+`sampling.composed_poisson_gaussian_epsilon`; ADR-0010 records why.
+What this module owns is the *mapping*: which two schedules Algorithm 2
+runs, and how the paper's three noise scales relate to the single
+multiplier they share.
 
 Assumed mechanism, beyond `sampling`'s
 -------------------------------------
@@ -43,22 +41,10 @@ sensitivity that is not the real one: the reported epsilon is then
 false, silently and with no crash. Fitting either constant on the data
 is itself an unaccounted access (ADR-0008, ADR-0009).
 
-One further gap, in the paper rather than in this code. Line 12's cap
-``sigma-hat_2`` saturates the variation branch at ``2*L0``, and this
-module uses that saturation to justify a fixed multiplier. But B.3's
-privacy proof cites only ``L1*||w_t - w_{t-1}||`` - the cap and the
-``2*L0`` inside it appear nowhere in the argument. The saturating bound
-``min(L1*||dw||, 2*L0)`` is a reconstruction from the algorithm box,
-not a restatement of the proof. It is the tighter of two claims the
-paper makes in different places, and it is the one implemented here.
+The saturating bound the fixed multiplier rests on is read off the
+algorithm box rather than the privacy proof; ADR-0010 records that gap.
 
-What is claimed, and what is not
---------------------------------
-The privacy, not the convergence rate. Theorem B.3 is proved under its
-own parameter settings, and calibrating numerically produces different
-scales, so the rate does not travel with the epsilon. Theorem B.2 is
-never invoked, so its applicability condition ``T >= n^2 eps / b^2``
-does not arise.
+What is claimed is the privacy, not the convergence rate (ADR-0010).
 """
 
 from __future__ import annotations
@@ -69,7 +55,7 @@ from typing import NamedTuple
 
 from dimma.accounting.sampling import (
     Method,
-    PoissonGaussianReleases,
+    PoissonGaussianSchedule,
     calibrate_noise_multiplier,
     composed_poisson_gaussian_epsilon,
 )
@@ -172,7 +158,7 @@ def noise_scales(*, lipschitz_constant: float, smoothness_constant: float,
     multiplier = calibrate_noise_multiplier(
         releases, target_epsilon, target_delta, method=method)
 
-    return NoiseScales(
+    scales = NoiseScales(
         anchor_noise_scale=(
             multiplier * lipschitz_constant / anchor_expected_batch_size),
         variation_noise_rate=(
@@ -181,6 +167,12 @@ def noise_scales(*, lipschitz_constant: float, smoothness_constant: float,
             2.0 * multiplier * lipschitz_constant
             / variation_expected_batch_size),
     )
+    # An invariant, not input validation: these are the scales `epsilon`
+    # would refuse if the formulas above ever drifted apart.
+    assert math.isclose(
+        scales.variation_noise_cap / scales.variation_noise_rate,
+        2.0 * lipschitz_constant / smoothness_constant, rel_tol=1e-9)
+    return scales
 
 
 def epsilon(*, lipschitz_constant: float, smoothness_constant: float,
@@ -194,20 +186,12 @@ def epsilon(*, lipschitz_constant: float, smoothness_constant: float,
 
     The reporting direction, and the one that takes scales rather than
     producing them - so it is here, not in `noise_scales`, that a
-    caller can present a variation rate and cap whose ratio is not
-    ``2 * L0 / L1``. That ratio is what makes the variation branch a
-    fixed-multiplier Gaussian mechanism: scale and sensitivity saturate
-    at the same ``||w_t - w_{t-1}||``, so their quotient is constant on
-    both sides of the switch. Off that ratio the effective multiplier
-    varies with how far the parameters move, and no single number
-    describes the branch.
-
-    Misalignment is refused rather than papered over, because it is
-    invisible in the output otherwise. The conservative value
-    ``b2 * min(rate / L1, cap / (2 * L0))`` is sound - between the two
-    thresholds the effective multiplier interpolates monotonically, so
-    the smaller endpoint bounds it - and ``accept_misaligned_scales``
-    opts into it, loudly.
+    caller can present a variation rate and cap whose ratio is not the
+    ``2 * L0 / L1`` the fixed multiplier rests on (ADR-0010). Those are
+    refused, with the conservative value
+    ``b2 * min(rate / L1, cap / (2 * L0))`` named in the message;
+    ``accept_misaligned_scales`` reports from it instead, with a
+    warning.
 
     Parameters
     ----------
@@ -340,10 +324,10 @@ def _releases_from_multiplier(*, steps: int, anchor_interval: int,
     anchor_rate = anchor_expected_batch_size / dataset_size
     variation_rate = variation_expected_batch_size / dataset_size
 
-    def releases(multiplier: float) -> list[PoissonGaussianReleases]:
+    def releases(multiplier: float) -> list[PoissonGaussianSchedule]:
         return [
-            PoissonGaussianReleases(anchor_rate, multiplier, anchors),
-            PoissonGaussianReleases(variation_rate, multiplier, variations),
+            PoissonGaussianSchedule(anchor_rate, multiplier, anchors),
+            PoissonGaussianSchedule(variation_rate, multiplier, variations),
         ]
 
     return releases

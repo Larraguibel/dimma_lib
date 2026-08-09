@@ -13,7 +13,7 @@ import math
 import pytest
 
 from dimma.accounting.sampling import (
-    PoissonGaussianReleases,
+    PoissonGaussianSchedule,
     calibrate_noise_multiplier,
     composed_poisson_gaussian_epsilon,
     poisson_gaussian_epsilon,
@@ -145,9 +145,9 @@ def test_epsilon_matches_the_dp_accounting_reference():
 # Two schedules at different rates and counts, as a variance-reduced
 # method produces. ADR-0010's configuration.
 TWO = [
-    PoissonGaussianReleases(sampling_probability=0.02,
+    PoissonGaussianSchedule(sampling_probability=0.02,
                             noise_multiplier=1.5, num_compositions=100),
-    PoissonGaussianReleases(sampling_probability=0.005,
+    PoissonGaussianSchedule(sampling_probability=0.005,
                             noise_multiplier=1.5, num_compositions=1900),
 ]
 
@@ -156,7 +156,7 @@ def test_one_schedule_is_the_single_schedule_function():
     """The general form has to agree with the special case exactly, or
     the two entry points describe different mechanisms."""
     assert composed_poisson_gaussian_epsilon(
-        [PoissonGaussianReleases(**RUN_RELEASE)], RUN["target_delta"]
+        [PoissonGaussianSchedule(**RUN_RELEASE)], RUN["target_delta"]
     ) == poisson_gaussian_epsilon(**RUN)
 
 
@@ -180,7 +180,7 @@ def test_the_order_of_the_schedules_does_not_matter():
 
 
 def test_a_schedule_that_never_runs_costs_nothing():
-    idle = PoissonGaussianReleases(0.5, 1.0, 0)
+    idle = PoissonGaussianSchedule(0.5, 1.0, 0)
     assert composed_poisson_gaussian_epsilon(TWO + [idle], 1e-6) == \
         composed_poisson_gaussian_epsilon(TWO, 1e-6)
 
@@ -244,7 +244,7 @@ def test_the_absl_logger_is_left_as_it_was_found():
 # --- calibrating -----------------------------------------------------
 
 def one_schedule(multiplier):
-    return [PoissonGaussianReleases(1e-3, multiplier, 10_000)]
+    return [PoissonGaussianSchedule(1e-3, multiplier, 10_000)]
 
 
 def two_schedules(multiplier):
