@@ -19,6 +19,7 @@ from dimma.datasets.criteo import (
     _frequency_encode,
     load_criteo,
 )
+from dimma.datasets.preprocessing import cap_feature_norms
 
 from .conftest import N_ROWS, TEST_FRACTION, UNSEEN_CATEGORY, split_indices
 
@@ -258,6 +259,84 @@ def test_category_counts_are_exposed_only_where_they_exist(criteo_root):
     counts = load(criteo_root, "all", True).metadata["n_categories"]
     assert len(counts) == len(CAT_COLS)
     assert all(n > 0 for n in counts)
+
+
+# --------------------------------------------------------------------
+# The feature-norm bound (ADR-0012)
+# --------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("features,preprocess", MODES)
+def test_no_bound_is_the_default_and_leaves_no_trace(
+    criteo_root, features, preprocess
+):
+    assert "feature_norm_bound" not in load(
+        criteo_root, features, preprocess).metadata
+
+
+def test_the_bound_is_enforced_on_both_splits(criteo_root):
+    split = load_criteo(root=criteo_root, download=False,
+                        feature_norm_bound=1.0)
+    for x in (split.x_train, split.x_test):
+        norms = np.linalg.norm(np.asarray(x), axis=1)
+        assert np.all(norms <= 1.0 + 1e-5)
+
+
+def test_the_bound_reaches_the_metadata(criteo_root):
+    """So it can be handed to an accountant without being typed twice."""
+    split = load_criteo(root=criteo_root, download=False,
+                        feature_norm_bound=0.5)
+    assert split.metadata["feature_norm_bound"] == 0.5
+
+
+def test_the_cap_goes_after_the_fitted_maps(criteo_root):
+    """Capping first and standardizing after would leave the largest
+    norm far above R, and the accountant would never know."""
+    uncapped = np.asarray(load(criteo_root, "numeric", True).x_train)
+    expected, _ = cap_feature_norms(uncapped, 1.0)
+
+    capped = load_criteo(root=criteo_root, download=False,
+                         feature_norm_bound=1.0).x_train
+    assert np.allclose(np.asarray(capped), expected, atol=1e-6)
+
+
+def test_capping_before_standardizing_would_not_have_bounded_anything(
+    criteo_root,
+):
+    """The ordering is load-bearing, not stylistic: this is what the
+    other order would have produced."""
+    raw = np.asarray(load(criteo_root, "numeric", True).x_train)
+    wrong_order, _ = cap_feature_norms(raw, 1.0)
+    restandardized = (wrong_order - wrong_order.mean(0)) / wrong_order.std(0)
+    assert np.linalg.norm(restandardized, axis=1).max() > 1.0
+
+
+def test_the_bound_is_in_the_recorded_preprocessing(criteo_root):
+    metadata = load_criteo(root=criteo_root, download=False,
+                           feature_norm_bound=1.0).metadata
+    assert "1" in metadata["preprocessing"]
+    assert "norm" in metadata["preprocessing"]
+
+
+def test_a_different_bound_is_a_different_notice(criteo_root, capsys):
+    """The printed line has to track the bound, or the second run is
+    described by the first run's chain."""
+    load_criteo(root=criteo_root, download=False, feature_norm_bound=1.0)
+    capsys.readouterr()
+    load_criteo(root=criteo_root, download=False, feature_norm_bound=2.0)
+    assert capsys.readouterr().err != ""
+
+
+def test_a_bound_that_bounds_nothing_is_rejected(criteo_root):
+    with pytest.raises(ValueError):
+        load_criteo(root=criteo_root, download=False, feature_norm_bound=0.0)
+
+
+def test_capping_unpreprocessed_data_says_it_could_not(criteo_root):
+    """The raw mode keeps its NaN, and a NaN row is not bounded."""
+    with pytest.warns(UserWarning, match="finite"):
+        load_criteo(root=criteo_root, download=False, preprocess=False,
+                    feature_norm_bound=1.0)
 
 
 def test_notice_goes_to_stderr_and_matches_the_metadata(criteo_root, capsys):
