@@ -9,10 +9,13 @@ applies to them, and that belongs in the import line.
 ``poisson_truncated``
     Truncates oversize draws. Modified mechanism; the standard
     accounting does not apply to it.
+``shuffled``
+    Not a mechanism at all. Ordinary epoch shuffling, for the
+    non-private baselines; no amplification and nothing to account.
 
 Samplers state what they sample; they compute no privacy budget.
 """
 
-from dimma.core.sampling import poisson, poisson_truncated
+from dimma.core.sampling import poisson, poisson_truncated, shuffled
 
-__all__ = ["poisson", "poisson_truncated"]
+__all__ = ["poisson", "poisson_truncated", "shuffled"]

@@ -67,8 +67,8 @@ and the algorithms never import the models.
 
 ## Layout
 
-`core`, the dataset loaders, the reference model, and the first two algorithms;
-the rest is being ported in.
+`core`, the dataset loaders, the reference model, the first two algorithms and
+the first baseline; the rest is being ported in.
 
 ```
 src/dimma/
@@ -79,13 +79,17 @@ src/dimma/
 │   ├── dp_sgd/               classical DP-SGD (Abadi et al., 2016)
 │   │   ├── step.py             one iteration; the privatized gradient
 │   │   └── train.py            the loop, and stage 1
+│   ├── sgd/                  non-private SGD — DP-SGD's baseline
+│   │   ├── step.py             one iteration; no release, so one function
+│   │   └── train.py            the loop, and stage 1
 │   └── spiderboost/          Private SpiderBoost (Arora et al., 2023)
 │       ├── step.py             two mechanisms; a release each, and its apply
 │       └── train.py            the loop, stage 1, and the output rule
 ├── core/                    the pipeline stages
-│   ├── sampling/            stage 1 — one module per mechanism
+│   ├── sampling/            stage 1 — one module per sampler
 │   │   ├── poisson.py         the standard one; raises on an oversize draw
-│   │   └── poisson_truncated.py   modified mechanism, unaccounted
+│   │   ├── poisson_truncated.py   modified mechanism, unaccounted
+│   │   └── shuffled.py        ordinary epochs; not a mechanism at all
 │   ├── gradients.py         stage 3 — per-sample and batch gradients
 │   ├── clipping.py          stage 4
 │   ├── aggregation.py       stage 5 — sum/average, Poisson masking

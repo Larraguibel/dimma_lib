@@ -47,14 +47,22 @@ def test_core_does_not_re_export_stage_functions(name):
     assert not hasattr(core, name)
 
 
-def test_sampling_exports_the_two_mechanisms():
-    """Separate modules, so the choice is visible in the import line."""
-    assert set(sampling.__all__) == {"poisson", "poisson_truncated"}
+def test_sampling_exports_each_sampler_separately():
+    """Separate modules, so the choice is visible in the import line.
+
+    Three samplers, two of them mechanisms: `shuffled` is the ordinary
+    draw the non-private baselines take, and no accounting is stated
+    against it at all.
+    """
+    assert set(sampling.__all__) == {
+        "poisson", "poisson_truncated", "shuffled",
+    }
 
 
-@pytest.mark.parametrize("name", ["subsample", "padded_batch_size"])
-def test_sampling_does_not_flatten_the_two_mechanisms(name):
-    """Flattening would hide which mechanism the accounting applies to."""
+@pytest.mark.parametrize("name", ["subsample", "padded_batch_size", "batches"])
+def test_sampling_does_not_flatten_the_samplers(name):
+    """Flattening would hide which mechanism the accounting applies to,
+    and whether any does."""
     assert not hasattr(sampling, name)
 
 

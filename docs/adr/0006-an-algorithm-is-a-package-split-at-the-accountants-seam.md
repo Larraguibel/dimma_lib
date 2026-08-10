@@ -17,6 +17,12 @@ rather than inherited from whichever algorithm happened to be ported first.
 
 ## Consequences
 
+A baseline has no seam, so its `step` is one function. Count mechanisms and a
+non-private algorithm has none: it releases nothing, so there is no boundary to
+make visible and a release function would be a wrapper naming one that is not
+there. This is the rule reaching zero rather than an exception to it.
+`dimma.algorithms.sgd` is the first case.
+
 Count mechanisms, not functions. Two mechanisms differ if they differ anywhere
 — sampling rate, what is aggregated, the bound its sensitivity rests on, the
 noise scale — so sharing one release function between two of them would put one
