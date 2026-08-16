@@ -100,6 +100,10 @@ src/dimma/
 ├── datasets/                loaders; no algorithm imports these
 │   ├── criteo.py             Criteo 1M — columns × chain × standardization
 │   └── preprocessing.py      maps loaders compose; the per-record norm cap
+├── metrics/                 evaluation; nothing here takes a threshold
+│   ├── scoring.py            log loss, Brier, normalized entropy
+│   ├── calibration.py        reliability curve, ECE, observed/expected
+│   └── decomposition.py      calibration − resolution + uncertainty
 └── models/                  reference models; no algorithm imports these
     ├── logreg.py             logistic regression — one linear layer
     └── losses.py             sigmoid BCE, per-sample and batch
