@@ -1,16 +1,29 @@
-"""The Criteo 1M sample: a click-prediction benchmark, four ways.
+"""The Criteo 1M sample: a click-prediction benchmark, eight ways.
 
-Two independent choices, so four modes. *Which columns* — the 13 integer
-features, or all 39 including the 26 categorical ones. *Whether they are
-preprocessed* — the raw stored values, or the chain described in
-``metadata["preprocessing"]``.
+Three independent choices, so eight modes. *Which columns* — the 13
+integer features, or all 39 including the 26 categorical ones. *Whether
+they are preprocessed* — the stored values as they come, or the fill,
+clip, log1p and frequency encoding described in
+``metadata["preprocessing"]``. *Whether they are standardized* — column
+means and standard deviations fitted on the training split, or the
+scales the columns already had. Stored is not raw; see below.
 
-Both are parameters rather than one mode name, because a mode name is
-where the interesting part goes missing: the earlier version of this
+All three are parameters rather than one mode name, because a mode name
+is where the interesting part goes missing: the earlier version of this
 loader called its preprocessed mode ``"integer"``, which says which
 columns it returns and nothing about the log1p and standardization it
-also applies. Here ``preprocess`` is unmissable, and whatever it did is
-recorded in the returned metadata and printed once.
+also applies. Here each is unmissable at the call site, and whatever
+they did is recorded in the returned metadata and printed once.
+
+``standardize`` is its own axis, and off by default. It sets every
+column's scale to 1, so it puts a typical row's ℓ₂ norm near
+``sqrt(d)`` whatever it was before — and on this file that is a move
+upwards: the largest norm over the numeric chain goes from about 2 to
+about 15. That number is what a ``feature_norm_bound`` afterwards has to
+bound, and per ADR-0012 the constants derived from it grow like ``R``
+and ``R²``. Standardizing therefore buys conditioning with roughly fifty
+times the noise, which ADR-0013 records as a trade the caller makes
+explicitly rather than one a default makes for them.
 
 Every statistic — medians, category frequencies, means, standard
 deviations — is fitted on the training split alone and applied to the
@@ -18,6 +31,27 @@ test split, so the test set leaks nothing into the features. Note that
 this is not itself a private operation: the statistics depend on the
 training data and are not accounted for in any privacy budget. That is
 the standard benchmark convention, not a claim about the pipeline.
+
+What the pinned file actually holds
+-----------------------------------
+Not raw Criteo. ``I1..I13`` arrive already scaled into ``[0, 1]``
+against a per-column cap — the distinct values of ``I1`` are the 21
+multiples of 0.05, of ``I3`` the 101 multiples of 0.01, of ``I6`` the
+501 multiples of 0.002 — and there is no NaN anywhere, in the integer
+block or the categorical one, and no negative value. The upstream
+sample documents none of this and ``dimma`` pins it only by SHA256, so
+the scaling is a property of the file rather than a step this loader
+can point at. Getting raw integer-with-NaN semantics would mean
+re-deriving the sample from the original Criteo dump.
+
+Two things follow for ``preprocess=True``. The median fill has nothing
+to fill and the clip at 0 has nothing to clip; both are no-ops here,
+kept because they are what the chain owes raw Criteo. And ``log1p``
+runs on values already in ``[0, 1]``, so it compresses them into
+``[0, log 2]`` monotonically rather than taming a long tail. So on this
+file ``preprocess=True`` alone is close to a no-op for the integer
+block, and ``standardize=True`` is the step that does what its name
+suggests — which is the other half of why the two are separate axes.
 
 License
 -------
@@ -68,26 +102,43 @@ _LICENSE_NOTICE = (
 
 _DESCRIPTIONS = {
     ("numeric", False): (
-        "13 integer features I1-I13 exactly as stored, cast to float32. "
-        "NaN preserved. No fill, no log1p, no standardization."
+        "13 integer features I1-I13 exactly as stored, cast to float32 — "
+        "already scaled into [0, 1] upstream, not raw Criteo integers, and "
+        "with no NaN to preserve. No fill, no log1p."
     ),
     ("numeric", True): (
         "13 integer features I1-I13: NaN filled with the train-split median, "
-        "clipped below at 0, log1p, then standardized by the train-split mean "
-        "and standard deviation."
+        "clipped below at 0, then log1p. The stored values carry no NaN and "
+        "no negatives, so the fill and the clip are no-ops here and log1p "
+        "acts on [0, 1]."
     ),
     ("all", False): (
         "39 features I1-I13 and C1-C26 exactly as stored, cast to float32. "
-        "NaN preserved. C* are integer category IDs, which float32 represents "
-        "exactly below 2**24. No fill, no log1p, no encoding, no "
-        "standardization."
+        "I* are already scaled into [0, 1] upstream, not raw Criteo integers; "
+        "C* are integer category IDs, which float32 represents exactly below "
+        "2**24. No NaN in either block. No fill, no log1p, no encoding."
     ),
     ("all", True): (
         "39 features. I1-I13: NaN filled with the train-split median, clipped "
-        "below at 0, log1p. C1-C26: each category ID replaced by that "
-        "category's relative frequency in the train split, with categories "
-        "unseen in training encoded as 0.0. All 39 columns then standardized "
-        "by the train-split mean and standard deviation."
+        "below at 0, log1p — the fill and the clip are no-ops on stored values "
+        "that carry neither NaN nor negatives, and log1p acts on [0, 1]. "
+        "C1-C26: each category ID replaced by that category's relative "
+        "frequency in the train split, with categories unseen in training "
+        "encoded as 0.0."
+    ),
+}
+
+#: Appended to the sentence above. Its own clause because `standardize`
+#: is its own axis: a chain that standardized and one that did not must
+#: never be described by the same prose, whichever way the default falls.
+_STANDARDIZATION = {
+    True: (
+        " Every column then standardized by the train-split mean and "
+        "standard deviation."
+    ),
+    False: (
+        " Not standardized: the columns keep the scales above, and no "
+        "mean or standard deviation was fitted."
     ),
 }
 
@@ -115,7 +166,14 @@ def _frequency_encode(
 def _prepare_integers(
     train_df: pd.DataFrame, test_df: pd.DataFrame
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Median-fill, clip at 0, log1p. Statistics from the train split only."""
+    """Median-fill, clip at 0, log1p. Statistics from the train split only.
+
+    The first two are no-ops on the pinned file, which stores I1-I13
+    already scaled into ``[0, 1]`` with no NaN and no negatives. They
+    stay because they are what raw Criteo integers would need, and
+    dropping them would make this chain wrong for any file but the one
+    currently pinned.
+    """
     medians = train_df.median(numeric_only=True)
     train = train_df.fillna(medians).to_numpy(dtype=np.float32)
     test = test_df.fillna(medians).to_numpy(dtype=np.float32)
@@ -142,6 +200,7 @@ def _standardize(
 def load_criteo(
     features: Literal["numeric", "all"] = "numeric",
     preprocess: bool = True,
+    standardize: bool = False,
     root: str | Path | None = None,
     download: bool = True,
     test_fraction: float = 0.2,
@@ -158,15 +217,30 @@ def load_criteo(
     Parameters
     ----------
     features : {"numeric", "all"}, default "numeric"
-        ``"numeric"`` returns the 13 integer features ``I1..I13``.
-        ``"all"`` returns those plus the 26 categorical features
-        ``C1..C26``, which are integer category IDs in the source file.
+        ``"numeric"`` returns the 13 integer features ``I1..I13``, which
+        the pinned file stores already scaled into ``[0, 1]`` rather
+        than as raw Criteo integers. ``"all"`` returns those plus the 26
+        categorical features ``C1..C26``, which are integer category IDs
+        in the source file.
     preprocess : bool, default True
-        Whether to apply the chain recorded in
-        ``metadata["preprocessing"]`` and printed once per process. With
-        ``False`` the stored values are returned untouched beyond a cast
-        to float32, NaN included, and the caller owns everything
-        downstream.
+        Whether to apply the column chain recorded in
+        ``metadata["preprocessing"]`` and printed once per process:
+        median fill, clip at 0 and ``log1p`` on ``I1..I13``, and
+        frequency encoding on ``C1..C26``. With ``False`` the stored
+        values are returned untouched beyond a cast to float32, and the
+        caller owns everything downstream. Untouched is not raw: see the
+        module docstring for what the pinned file has already had done
+        to it. This axis does not standardize; ``standardize`` does.
+    standardize : bool, default False
+        Whether to centre and scale every column by the train-split mean
+        and standard deviation, last before any ``feature_norm_bound``.
+        Independent of ``preprocess``, so either chain can be
+        standardized or not. Off by default: it is the step that pushes
+        row norms towards ``sqrt(d)``, and the cost of the wider ``R``
+        that then has to bound them is quadratic in the noise — ADR-0013
+        records the trade, ADR-0012 the constants. With ``True`` the
+        fitted arrays come back as ``metadata["feature_means"]`` and
+        ``metadata["feature_stds"]``; with ``False`` neither key exists.
     root : str | Path | None, default None
         Cache directory. ``None`` uses ``get_cache_dir("datasets")``.
     download : bool, default True
@@ -192,16 +266,16 @@ def load_criteo(
     -------
     TabularSplit
         ``metadata`` always carries ``"features"``, ``"preprocess"``,
-        ``"preprocessing"`` (the chain in prose), ``"columns"``,
-        ``"license"``, and ``"source"``. With ``preprocess=True`` it also
-        carries ``"feature_means"`` and ``"feature_stds"``, the arrays the
-        columns were standardized by; with ``features="all"`` it carries
-        ``"int_cols"`` and ``"cat_cols"``, and when both hold,
+        ``"standardize"``, ``"preprocessing"`` (the chain in prose),
+        ``"columns"``, ``"license"``, and ``"source"``. With
+        ``standardize=True`` it also carries ``"feature_means"`` and
+        ``"feature_stds"``, the arrays the columns were standardized by;
+        with ``features="all"`` it carries ``"int_cols"`` and
+        ``"cat_cols"``, and when ``preprocess=True`` as well,
         ``"n_categories"`` — the distinct IDs each ``C*`` column had in
         the training split, before frequency encoding collapsed it to one
-        float. Whatever ``features`` and ``preprocess`` are, a
-        ``feature_norm_bound`` that was enforced is carried back under
-        that name.
+        float. Whatever the three axes are, a ``feature_norm_bound`` that
+        was enforced is carried back under that name.
 
     Raises
     ------
@@ -255,7 +329,9 @@ def load_criteo(
     y_train = train_df[LABEL_COL].to_numpy(dtype=np.float32)
     y_test = test_df[LABEL_COL].to_numpy(dtype=np.float32)
 
-    description = _DESCRIPTIONS[(features, preprocess)]
+    description = (
+        _DESCRIPTIONS[(features, preprocess)] + _STANDARDIZATION[standardize]
+    )
     if feature_norm_bound is not None:
         description += (
             f" Every row then rescaled to l2 norm at most "
@@ -264,6 +340,7 @@ def load_criteo(
     metadata: dict = {
         "features": features,
         "preprocess": preprocess,
+        "standardize": standardize,
         "preprocessing": description,
         "columns": list(columns),
         "license": "CC-BY-NC-SA 4.0",
@@ -295,6 +372,7 @@ def load_criteo(
             x_test = np.concatenate(blocks_test, axis=1)
             metadata["n_categories"] = cardinalities
 
+    if standardize:
         x_train, x_test, means, stds = _standardize(x_train, x_test)
         metadata["feature_means"] = means
         metadata["feature_stds"] = stds
@@ -307,7 +385,7 @@ def load_criteo(
         metadata["feature_norm_bound"] = bound
 
     emit_once(
-        f"criteo:{features}:{preprocess}:{feature_norm_bound}",
+        f"criteo:{features}:{preprocess}:{standardize}:{feature_norm_bound}",
         f"criteo: {description}",
     )
 
