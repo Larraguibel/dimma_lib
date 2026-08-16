@@ -26,6 +26,20 @@ dev = [
     "pytest>=8.0",
     "dimma[datasets]",
 ]
+# Base jax is the CPU build; the CUDA kernels ship as a separate plugin, so a
+# plain install silently falls back to CPU. This extra pulls the plugin, which
+# carries its own CUDA userspace and needs only a >=580 NVIDIA driver on the
+# host. CUDA 13 wheels start at jax 0.11, hence the higher floor than base.
+gpu = [
+    "jax[cuda13]>=0.11.0",
+]
+# The notebooks under notebooks/ read the library the way a caller would.
+# They need a plotting stack and a kernel, which nothing in src/ imports.
+notebooks = [
+    "jupyter>=1.0",
+    "matplotlib>=3.8",
+    "dimma[datasets]",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
