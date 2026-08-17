@@ -41,5 +41,16 @@ ADR-0008 records for its medians and standard deviations — or large enough to
 drown the signal. Any (ε, δ) reported over that data inherits the caveat, and
 the honest outcome may be that the assumption does not hold there.
 
+Both halves of that have since been settled and the paragraph above is kept as
+written because it is what was believed at the time. ADR-0012 removed the first
+horn: `L0` is not fitted but implied by an imposed `R`, so there is no code
+path from a feature array to a constant. The second was measured on Criteo in
+`notebooks/03-what-the-feature-norm-bound-costs.ipynb` — it does not drown the
+signal at any `R` in the defensible range, including the `R = 1` that needs no
+look at the data, though it does at an `R` an order of magnitude above it. What
+survives is narrower than this paragraph and belongs to whoever reports a
+number rather than to the library: `R`'s provenance is not something `metadata`
+can record.
+
 Stage 4 is therefore absent from this algorithm's stage table by decision rather
 than by omission; see ADR-0001.
