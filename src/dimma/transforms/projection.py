@@ -1,8 +1,11 @@
 """The ``l_1`` projection, applied at the optimizer seam.
 
 `dimma.core.projection` is the geometry; this module is the layer that
-applies it. `l1_projected` wraps an `Optimizer` so every update lands
-inside one global ``l_1`` ball, and because every training loop in
+applies it, to either of the two quantities the seam carries.
+`l1_projected` constrains the *iterates*: every update lands inside one
+global ``l_1`` ball. `l1_projected_estimate` constrains the *estimate*:
+the rule descends along the projection of what stage 6 released, and
+the iterates go wherever it sends them. Because every training loop in
 `dimma.algorithms` takes its optimizer through the same seam, one
 wrapper serves all of them — the caller writes::
 
@@ -26,7 +29,17 @@ from dimma.core import projection, pytree, updates
 
 __all__ = [
     "l1_projected",
+    "l1_projected_estimate",
 ]
+
+
+def _reject_negative_concrete(radius: float | jax.Array) -> None:
+    if isinstance(radius, (int, float)) and not isinstance(radius, bool):
+        if radius < 0:
+            raise ValueError(
+                f"radius={radius} must be non-negative; no point lies "
+                f"inside a ball of negative radius."
+            )
 
 
 def l1_projected(
@@ -67,12 +80,7 @@ def l1_projected(
     `updates.apply` always passes them; a bare ``update(estimate,
     state)`` call raises rather than silently skipping the projection.
     """
-    if isinstance(radius, (int, float)) and not isinstance(radius, bool):
-        if radius < 0:
-            raise ValueError(
-                f"radius={radius} must be non-negative; no point lies "
-                f"inside a ball of negative radius."
-            )
+    _reject_negative_concrete(radius)
 
     def update_fn(
         estimate, state, params=None
@@ -86,5 +94,60 @@ def l1_projected(
         stepped = pytree.add(params, increment)
         projected = projection.project_l1_ball_pytree(stepped, radius)
         return pytree.sub(projected, params), new_state
+
+    return updates.Optimizer(optimizer.init, update_fn)
+
+
+def l1_projected_estimate(
+    optimizer: updates.Optimizer, radius: float | jax.Array
+) -> updates.Optimizer:
+    """Feed ``optimizer`` its estimate projected into the ``l_1`` ball.
+
+    Projects the incoming estimate onto ``{g : ‖g‖_1 <= radius}`` — one
+    ball, global across every leaf — and runs the wrapped rule on the
+    result. The iterates are not constrained; contrast `l1_projected`,
+    which projects the point a step produces and leaves the estimate
+    alone.
+
+    Applied to a privatized gradient this is Ghazi, Guzmán, Kamath,
+    Kumar and Manurangsi's projection step (*Differentially Private
+    Optimization with Sparse Gradients*, 2024, Algorithm 1 and
+    Section 5): their radius is ``L√s`` for records ``l_2``-bounded by
+    ``L`` and ``s``-sparse, and their Lemma 3.1 is the reason to want
+    it — the signal is sparse, the noise is dense, and the projection
+    strips most of the noise. The noise itself belongs to whatever
+    mechanism released the estimate, not to this wrapper, which claims
+    nothing (see the module docstring).
+
+    Parameters
+    ----------
+    optimizer
+        The rule to feed. Anything satisfying `updates.Optimizer`'s
+        structural contract, so an optax transformation wraps the same
+        way `updates.sgd` does.
+    radius
+        The ball's radius. May be traced; a concrete negative value is
+        rejected here rather than projecting onto an empty set.
+
+    Returns
+    -------
+    updates.Optimizer
+        Carrying the wrapped rule's ``init`` and state unchanged: the
+        wrapper adds no state of its own, so a schedule keeps indexing
+        the same count.
+
+    Notes
+    -----
+    Projecting the estimate reads nothing from the parameters, so
+    unlike `l1_projected` a bare ``update(estimate, state)`` call
+    works; ``params`` is passed through to the wrapped rule untouched.
+    """
+    _reject_negative_concrete(radius)
+
+    def update_fn(
+        estimate, state, params=None
+    ) -> tuple[object, updates.OptState]:
+        projected = projection.project_l1_ball_pytree(estimate, radius)
+        return optimizer.update(projected, state, params)
 
     return updates.Optimizer(optimizer.init, update_fn)
