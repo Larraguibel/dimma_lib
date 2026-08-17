@@ -100,9 +100,11 @@ src/dimma/
 ├── datasets/                loaders; no algorithm imports these
 │   ├── criteo.py             Criteo 1M — columns × preprocessing, four ways
 │   └── preprocessing.py      maps loaders compose; the per-record norm cap
-└── models/                  reference models; no algorithm imports these
-    ├── logreg.py             logistic regression — one linear layer
-    └── losses.py             sigmoid BCE, per-sample and batch
+├── models/                  reference models; no algorithm imports these
+│   ├── logreg.py             logistic regression — one linear layer
+│   └── losses.py             sigmoid BCE, per-sample and batch
+└── transforms/              post-processing that composes across algorithms
+    └── projection.py         the ℓ₁-ball projection, at the optimizer seam
 
 tests/                       mirrors src/dimma/
 docs/agents/                 agent-facing context, not published
