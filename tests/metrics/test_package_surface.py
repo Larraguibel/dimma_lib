@@ -4,11 +4,13 @@ ADR-0004: a caller writes `from dimma.metrics.scoring import log_loss`,
 so the import line says which question the number answers. Nothing
 enforces that at runtime, so it is pinned here.
 
-The second half pins an absence. A metrics package is where `accuracy`
-and `f1_score` arrive by default, and they are missing on purpose:
-both need an operating point, and this task has none to give them. A
-later convenience import fails a test rather than quietly putting a
-threshold back into a comparison that was built not to need one.
+The second half pins an absence, in the narrowed shape ADR-0016 gives
+it. `roc_auc` and `accuracy` are barred from every module, permanently.
+Everything else that needs an operating point is barred from every
+module that does not own one — `operating_point` owns the cut, and
+`ranking` takes every cut and so fixes none. A later convenience import
+fails a test rather than quietly putting a threshold back into a
+comparison that was built not to need one.
 """
 
 from __future__ import annotations
@@ -19,14 +21,27 @@ import pytest
 
 from dimma import metrics
 
-MODULES = ["_binning", "_inputs", "calibration", "decomposition", "scoring"]
+MODULES = [
+    "_binning", "_inputs", "_ranked", "calibration", "decomposition",
+    "operating_point", "ranking", "scoring",
+]
+
+PUBLIC_MODULES = [
+    "calibration", "decomposition", "operating_point", "ranking", "scoring",
+]
+
+#: Modules that own no operating point, and so may offer no name needing one.
+WITHOUT_AN_OPERATING_POINT = [m for m in MODULES if m != "operating_point"]
+
+#: Modules that read no ranking, and so may offer no curve over every cut.
+WITHOUT_A_RANKING = ["calibration", "decomposition", "scoring"]
 
 
 def test_metrics_re_exports_nothing():
     assert metrics.__all__ == []
 
 
-@pytest.mark.parametrize("name", ["calibration", "decomposition", "scoring"])
+@pytest.mark.parametrize("name", PUBLIC_MODULES)
 def test_the_modules_resolve(name):
     assert importlib.import_module(f"dimma.metrics.{name}") is not None
 
@@ -34,19 +49,37 @@ def test_the_modules_resolve(name):
 @pytest.mark.parametrize("name", [
     "log_loss", "brier_score", "normalized_entropy", "reliability_curve",
     "expected_calibration_error", "calibration_ratio", "brier_decomposition",
-    "log_loss_decomposition",
+    "log_loss_decomposition", "pr_curve", "best_f1_threshold", "confusion_at",
 ])
 def test_no_function_is_reachable_from_the_package(name):
     assert not hasattr(metrics, name)
 
 
-@pytest.mark.parametrize("name", [
-    "accuracy", "f1_score", "confusion_matrix", "precision_recall_curve",
-    "roc_auc", "average_precision", "best_threshold",
-])
-def test_nothing_that_needs_an_operating_point_is_offered(name):
-    """Absent by decision. See `dimma.metrics` for the reasoning."""
-    for module in ("scoring", "calibration", "decomposition"):
+@pytest.mark.parametrize("name", ["roc_auc", "accuracy"])
+def test_roc_auc_and_accuracy_are_offered_nowhere(name):
+    """Barred in every module, including the ones that take a cut.
+
+    Absent by decision. See ADR-0016.
+    """
+    for module in MODULES:
+        assert not hasattr(importlib.import_module(f"dimma.metrics.{module}"), name)
+
+
+@pytest.mark.parametrize("name", ["f1_score", "confusion_matrix", "best_threshold"])
+def test_only_operating_point_offers_a_name_that_needs_a_cut(name):
+    """Absent wherever the cut is not the module's own. See ADR-0016."""
+    for module in WITHOUT_AN_OPERATING_POINT:
+        assert not hasattr(importlib.import_module(f"dimma.metrics.{module}"), name)
+
+
+@pytest.mark.parametrize("name", ["precision_recall_curve", "average_precision"])
+def test_only_ranking_offers_the_curve_over_every_cut(name):
+    """Absent wherever the order is not what the module reads.
+
+    ADR-0016: these were barred by name under the old rule and are not
+    operating-point metrics at all — `ranking` owns them.
+    """
+    for module in WITHOUT_A_RANKING:
         assert not hasattr(importlib.import_module(f"dimma.metrics.{module}"), name)
 
 
