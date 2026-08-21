@@ -115,7 +115,10 @@ def l1_projected_estimate(
     Section 5): their radius is ``L√s`` for records ``l_2``-bounded by
     ``L`` and ``s``-sparse, and their Lemma 3.1 is the reason to want
     it — the signal is sparse, the noise is dense, and the projection
-    strips most of the noise. The noise itself belongs to whatever
+    strips most of the noise. Only the projection step lands here:
+    projecting an estimate biases it, and Section 5's own contribution
+    is the machinery that repairs that bias, which this wrapper does
+    not carry. The noise itself belongs to whatever
     mechanism released the estimate, not to this wrapper, which claims
     nothing (see the module docstring).
 

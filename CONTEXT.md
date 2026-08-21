@@ -49,9 +49,11 @@ to step, so it is not what an estimate is divided by.
 _Avoid_: minibatch, sample
 
 **Expected batch size**:
-The constant a step's aggregate is divided by, fixed before the run rather
-than read off the draw. Dividing by what the draw actually produced would make
-the divisor depend on the data.
+The constant a step's aggregate is divided by. The rule is that the divisor
+must never depend on the data: under per-example inclusion draws the realized
+count does, so the expectation — fixed before the run — is the divisor. A size
+the mechanism's own coin fixes before the data is touched depends on nothing
+the data chose, and qualifies even though it varies from step to step.
 _Avoid_: realized batch size, actual batch size
 
 **Padding cap**:
