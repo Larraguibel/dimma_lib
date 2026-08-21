@@ -50,19 +50,26 @@ def test_core_does_not_re_export_stage_functions(name):
 def test_sampling_exports_each_sampler_separately():
     """Separate modules, so the choice is visible in the import line.
 
-    Three samplers, two of them mechanisms: `shuffled` is the ordinary
+    Four samplers, three of them mechanisms: `shuffled` is the ordinary
     draw the non-private baselines take, and no accounting is stated
     against it at all.
     """
     assert set(sampling.__all__) == {
-        "poisson", "poisson_truncated", "shuffled",
+        "dyadic", "poisson", "poisson_truncated", "shuffled",
     }
 
 
-@pytest.mark.parametrize("name", ["subsample", "padded_batch_size", "batches"])
+@pytest.mark.parametrize("name", [
+    "subsample", "padded_batch_size", "batches",
+    "max_scale", "draw_scale",
+])
 def test_sampling_does_not_flatten_the_samplers(name):
     """Flattening would hide which mechanism the accounting applies to,
-    and whether any does."""
+    and whether any does.
+
+    `subsample` is the sharpest case: `dyadic` and both Poisson
+    samplers all define one, and they return different things.
+    """
     assert not hasattr(sampling, name)
 
 
