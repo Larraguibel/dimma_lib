@@ -193,25 +193,22 @@ def batch_release(
         grad_fn(params, x_batch, y_batch), estimator.claim.clip_norm
     )
     whole_key, odd_key, even_key = jax.random.split(key, 3)
-    return BatchRelease(
-        whole=estimator.estimate(
-            aggregation.average_over_batch(clipped, batch_size),
-            whole_key,
-            batch_size,
-        ),
-        odd=estimator.estimate(
-            aggregation.average_over_batch(_rows(clipped, 0, half), half),
-            odd_key,
-            half,
-        ),
-        even=estimator.estimate(
-            aggregation.average_over_batch(
-                _rows(clipped, half, batch_size), half
-            ),
-            even_key,
-            half,
-        ),
+    whole = estimator.estimate(
+        aggregation.average_over_batch(clipped, batch_size),
+        whole_key,
+        batch_size,
     )
+    odd = estimator.estimate(
+        aggregation.average_over_batch(_rows(clipped, 0, half), half),
+        odd_key,
+        half,
+    )
+    even = estimator.estimate(
+        aggregation.average_over_batch(_rows(clipped, half, batch_size), half),
+        even_key,
+        half,
+    )
+    return BatchRelease(whole=whole, odd=odd, even=even)
 
 
 def single_release(
@@ -251,8 +248,15 @@ def single_release(
 
 
 def _as_host_float64(tree: Any) -> Any:
-    """Every leaf as a host `numpy` float64 array."""
-    return jax.tree.map(lambda leaf: np.asarray(leaf, dtype=np.float64), tree)
+    """Every floating leaf as a host `numpy` float64 array; others as-is."""
+
+    def _convert(leaf):
+        array = np.asarray(leaf)
+        if np.issubdtype(array.dtype, np.floating):
+            return array.astype(np.float64)
+        return array
+
+    return jax.tree.map(_convert, tree)
 
 
 def _as_device_float32(tree: Any) -> Any:

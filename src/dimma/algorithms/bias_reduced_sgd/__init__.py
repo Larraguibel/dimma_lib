@@ -118,11 +118,21 @@ number rather than a crash:
 
 Our words, not the paper's
 --------------------------
-*Scale* for the paper's ``N``, *whole* / *odd* / *even* for ``B``,
-``O``, ``E``, *filter* for Theorem A.4's stopping rule, and *debias*
-for the ``1 / p_N`` combine. Each has one consumer, so by the
-two-consumer rule they stay here rather than in CONTEXT.md. *Release*,
-*expected batch size* and *post-processing* are the glossary's.
+*Scale* for the paper's ``N`` and *whole* / *odd* / *even* for ``B``,
+``O``, ``E``, are borrowed rather than coined. All four are public
+names of `dimma.core.sampling.dyadic.DyadicDraw` — ``scale`` and
+``whole`` its fields, ``odd`` and ``even`` its properties, with
+``scale`` also what `dyadic.draw_scale` returns — and CONTEXT.md's
+rule is that a word already carried by a public API means what the API
+means. So this package speaks the sampler's words rather than second
+ones of its own, and a draw and the release taken from it are named
+the same thing on both sides of the call.
+
+*Filter*, for Theorem A.4's stopping rule, and *debias*, for the
+``1 / p_N`` combine, are this package's own. Each has one consumer, so
+by the two-consumer rule they stay here rather than in CONTEXT.md.
+*Release*, *expected batch size* and *post-processing* are the
+glossary's.
 
 Nothing is re-exported; import from `estimators`, `step` and `train`.
 """

@@ -83,18 +83,6 @@ class Run(NamedTuple):
     budget, so reporting it is not a metric — see the Notes."""
 
 
-def _as_host_float64(tree: Any) -> Any:
-    """Every floating leaf as a host `numpy` float64 array."""
-
-    def convert(leaf):
-        array = np.asarray(leaf)
-        if np.issubdtype(array.dtype, np.floating):
-            return array.astype(np.float64)
-        return array
-
-    return jax.tree.map(convert, tree)
-
-
 def train(
     per_sample_loss_fn: Callable,
     params: Any,
@@ -305,18 +293,15 @@ def train(
     accounting.check_claim(mean_estimator.claim)
 
     grad_fn = gradients.per_sample_grads(per_sample_loss_fn)
-    releases = _step.Releases(
-        batch=jax.jit(
-            partial(_step.batch_release, grad_fn, mean_estimator),
-            static_argnames=("batch_size",),
-        ),
-        single=jax.jit(
-            partial(_step.single_release, grad_fn, mean_estimator)
-        ),
+    batch = jax.jit(
+        partial(_step.batch_release, grad_fn, mean_estimator),
+        static_argnames=("batch_size",),
     )
+    single = jax.jit(partial(_step.single_release, grad_fn, mean_estimator))
+    releases = _step.Releases(batch=batch, single=single)
     probabilities = dyadic.scale_probabilities(max_scale)
 
-    params = _as_host_float64(params)
+    params = _step._as_host_float64(params)
     opt_state = updates.init(optimizer, params)
     average_params, random_params = params, params
     spent = accounting.NOTHING_SPENT

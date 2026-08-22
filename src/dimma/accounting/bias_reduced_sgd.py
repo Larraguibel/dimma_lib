@@ -57,7 +57,10 @@ where the number is made:
   ``eps <= 1``. Above it the per-step cost here is an *under*-estimate,
   so the loop refuses such a budget rather than reporting from it;
 - **the inner mechanism is Gaussian.** `check_claim` enforces exactly
-  this much, by type, and refuses anything else.
+  this much, by type, and refuses anything else. The type it checks,
+  `GaussianMeanClaim`, is defined here rather than beside the estimator
+  that carries it, so that pricing a claim never requires importing the
+  algorithm that made it — ADR-0003's split, in imports.
 
 No ``method`` argument
 ----------------------
@@ -81,9 +84,8 @@ from __future__ import annotations
 import math
 from typing import Any, NamedTuple
 
-from dimma.algorithms.bias_reduced_sgd import estimators
-
 __all__ = [
+    "GaussianMeanClaim",
     "Spent",
     "NOTHING_SPENT",
     "check_claim",
@@ -125,6 +127,45 @@ NOTHING_SPENT = Spent(0, 0.0, 0.0)
 """A run before its first step. The identity of `spend`."""
 
 
+class GaussianMeanClaim(NamedTuple):
+    """The privacy claim an inner mean release carries.
+
+    A Gaussian mechanism over a batch mean of ``l_2`` sensitivity
+    ``2 * clip_norm / batch_size`` — Theorem 3.3's ``Delta_2 = 2L/n``,
+    under the add-or-remove-one adjacency dimma assumes — perturbed at
+    ``noise_multiplier`` times that sensitivity, and then
+    post-processed.
+
+    Its *type* is what the accountant checks. Lemma 5.3 composes four
+    Gaussian releases and nothing else, so an estimator whose release
+    is anything else must be refused rather than accounted by analogy:
+    Algorithm 2's second branch folds a random-matrix failure event
+    into ``delta``, which is a different mechanism however similar the
+    code that runs it.
+
+    Defined here, with `check_claim` and the closed form that prices
+    it, rather than beside the estimator that fills it in: the claim is
+    the accountant's vocabulary, per ADR-0003, and keeping it here is
+    what lets `dimma.accounting` price a run without importing any
+    algorithm code.
+    `dimma.algorithms.bias_reduced_sgd.estimators` re-exports it, so an
+    estimator naming its own claim need not reach across.
+
+    The batch size is deliberately absent. It changes within a step and
+    is a property of the slot, not of the estimator; what is fixed for
+    the run, and what an accountant needs, is the dimensionless
+    multiplier.
+    """
+
+    clip_norm: float
+    """``L``. Enforced by stage 4 rather than assumed of the loss —
+    ADR-0012's pattern, not ADR-0009's."""
+
+    noise_multiplier: float
+    """The standard deviation actually added, divided by the
+    sensitivity it is calibrated against."""
+
+
 def check_claim(claim: Any) -> None:
     """Refuse an inner mean estimator this analysis does not cover.
 
@@ -144,7 +185,7 @@ def check_claim(claim: Any) -> None:
     ValueError
         If ``claim`` is not a `GaussianMeanClaim`.
     """
-    if not isinstance(claim, estimators.GaussianMeanClaim):
+    if not isinstance(claim, GaussianMeanClaim):
         raise ValueError(
             f"claim is a {type(claim).__name__}, and this accountant "
             f"prices only a GaussianMeanClaim. Lemma 5.3 composes four "
@@ -248,8 +289,9 @@ def step_cost(*, scale: int, n: int, target_epsilon: float,
             f"examples."
         )
     releases = 3.0 * float(1 << (scale + 1)) + 1.0
-    return (releases * target_epsilon / (16.0 * n),
-            releases * target_delta / (16.0 * n))
+    step_epsilon = releases * target_epsilon / (16.0 * n)
+    step_delta = releases * target_delta / (16.0 * n)
+    return (step_epsilon, step_delta)
 
 
 def spend(spent: Spent, cost: tuple[float, float]) -> Spent:
@@ -270,10 +312,13 @@ def spend(spent: Spent, cost: tuple[float, float]) -> Spent:
         true statement about an earlier prefix.
     """
     step_epsilon, step_delta = cost
+    steps = spent.steps + 1
+    sum_squared_epsilon = spent.sum_squared_epsilon + step_epsilon ** 2
+    sum_delta = spent.sum_delta + step_delta
     return Spent(
-        steps=spent.steps + 1,
-        sum_squared_epsilon=spent.sum_squared_epsilon + step_epsilon ** 2,
-        sum_delta=spent.sum_delta + step_delta,
+        steps=steps,
+        sum_squared_epsilon=sum_squared_epsilon,
+        sum_delta=sum_delta,
     )
 
 
