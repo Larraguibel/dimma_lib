@@ -4,7 +4,7 @@
 adversarially verified against the PDF, 2026-08-19/21; every citation below
 was checked against the text. The paper is Ghazi, Guzmán, Kamath, Kumar,
 Manurangsi, *Differentially Private Optimization with Sparse Gradients*,
-2024 — `papers/l1_projection.pdf` (gitignored).
+NeurIPS 2024, arXiv:2404.10881 — `papers/l1_projection.pdf` (gitignored).
 
 ## Claim
 
