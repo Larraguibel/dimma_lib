@@ -11,10 +11,12 @@ Three kinds of module, and the split is not stylistic:
 
 `sampling` and its neighbours wrap Google's `dp-accounting` for the
 standard mechanisms, where the analysis is settled and shared. An
-algorithm gets its own module here - `spiderboost`, and others as they
-land - only when its mechanism falls outside those assumptions or is
-bounded too loosely by them. Such a module travels with its algorithm
-and is not general-purpose.
+algorithm gets its own module here - `spiderboost`, `bias_reduced_sgd`,
+and others as they land - only when its mechanism falls outside those
+assumptions or is bounded too loosely by them. Such a module travels
+with its algorithm and is not general-purpose. `bias_reduced_sgd` is
+the one whose accountant is not a composition at all but a filter,
+because the schedule it prices is chosen by the run: ADR-0018.
 
 The third kind supplies a *premise* an accountant takes rather than an
 epsilon: `lipschitz` produces the constants Private SpiderBoost assumes
@@ -33,6 +35,11 @@ line says which analysis is being invoked:
     from dimma.accounting.sampling import poisson_gaussian_epsilon
 """
 
-from dimma.accounting import lipschitz, sampling, spiderboost
+from dimma.accounting import (
+    bias_reduced_sgd,
+    lipschitz,
+    sampling,
+    spiderboost,
+)
 
-__all__ = ["lipschitz", "sampling", "spiderboost"]
+__all__ = ["bias_reduced_sgd", "lipschitz", "sampling", "spiderboost"]
