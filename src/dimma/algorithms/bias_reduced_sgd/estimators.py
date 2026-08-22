@@ -24,7 +24,11 @@ call site is what lets a single estimator serve every slot.
 
 Makes no privacy claim about a run: `GaussianMeanClaim` says what one
 release is, and turning a sequence of releases into an (epsilon, delta)
-belongs to `dimma.accounting`, per ADR-0003.
+belongs to `dimma.accounting`, per ADR-0003. The claim type itself is
+defined there, in `dimma.accounting.bias_reduced_sgd`, beside the
+`check_claim` that reads it and the closed form that prices it; it is
+re-exported here so an estimator names its claim without reaching
+across, and so that the accountant never imports algorithm code.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from typing import Any, Callable, NamedTuple
 
 import jax
 
+from dimma.accounting.bias_reduced_sgd import GaussianMeanClaim
 from dimma.core import noise, projection
 
 __all__ = [
@@ -40,37 +45,6 @@ __all__ = [
     "MeanEstimator",
     "projection_estimator",
 ]
-
-
-class GaussianMeanClaim(NamedTuple):
-    """The privacy claim an inner mean release carries.
-
-    A Gaussian mechanism over a batch mean of ``l_2`` sensitivity
-    ``2 * clip_norm / batch_size`` — Theorem 3.3's ``Delta_2 = 2L/n``,
-    under the add-or-remove-one adjacency dimma assumes — perturbed at
-    ``noise_multiplier`` times that sensitivity, and then
-    post-processed.
-
-    Its *type* is what the accountant checks. Lemma 5.3 composes four
-    Gaussian releases and nothing else, so an estimator whose release
-    is anything else must be refused rather than accounted by analogy:
-    Algorithm 2's second branch folds a random-matrix failure event
-    into ``delta``, which is a different mechanism however similar the
-    code that runs it.
-
-    The batch size is deliberately absent. It changes within a step and
-    is a property of the slot, not of the estimator; what is fixed for
-    the run, and what an accountant needs, is the dimensionless
-    multiplier.
-    """
-
-    clip_norm: float
-    """``L``. Enforced by stage 4 rather than assumed of the loss —
-    ADR-0012's pattern, not ADR-0009's."""
-
-    noise_multiplier: float
-    """The standard deviation actually added, divided by the
-    sensitivity it is calibrated against."""
 
 
 class MeanEstimator(NamedTuple):
@@ -167,10 +141,7 @@ def projection_estimator(
             noise.add_gaussian(mean, key, scale), radius
         )
 
-    return MeanEstimator(
-        name="projection",
-        claim=GaussianMeanClaim(
-            clip_norm=clip_norm, noise_multiplier=noise_multiplier
-        ),
-        estimate=estimate,
+    claim = GaussianMeanClaim(
+        clip_norm=clip_norm, noise_multiplier=noise_multiplier
     )
+    return MeanEstimator(name="projection", claim=claim, estimate=estimate)

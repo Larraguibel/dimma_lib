@@ -73,7 +73,11 @@ carrying anything but a `GaussianMeanClaim` is refused rather than priced by
 resemblance — Algorithm 2's Theorem 3.4 folds a random-matrix failure event
 into `δ` and carries a regime condition that fails outright at the batch of one
 `G₀` needs. This is what "the release boundary stays visible to the accountant"
-means in code.
+means in code. The `GaussianMeanClaim` type is defined here too, beside the
+`check_claim` that reads it and the closed form that prices it, and
+`algorithms/bias_reduced_sgd/estimators.py` re-exports it: ADR-0003 puts the
+claim with the code that prices it, and this keeps `accounting` free of any
+import from `algorithms`, in the direction this ADR authorises and no other.
 
 Two things the numbers rest on are the paper's assertions and not this
 library's, stated verbatim in the module docstring on ADR-0009's pattern: that a
