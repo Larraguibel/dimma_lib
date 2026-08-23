@@ -1,0 +1,150 @@
+# Evaluation on Criteo
+
+Executed runs live in `notebooks/` — per-algorithm hyperparameter tuning
+under `tuning/`, head-to-head comparisons under a shared protocol under
+`comparisons/`. Notebooks are numbered globally and cited by number; this
+page collects what they found. The dataset throughout is Criteo click
+prediction (1M rows: 800,000 train, 200,000 test), with logistic
+regression as the model.
+
+## How results are read
+
+**Selection is threshold-free; reporting is not.** Click prediction never
+converts a probability into a class — the number is multiplied into a bid
+or used to order a slate — and a metric that needs an operating point lets
+each configuration pick its own, which is not a comparison. So models are
+*selected* on strictly proper scores (log loss), read alongside
+calibration and ranking, and *reported* with a headline confusion matrix
+at one named cut, chosen under a stated rule and frozen before the split
+it is reported on. `dimma.metrics` is built around exactly this line.
+
+**ROC-AUC and accuracy are never reported.** Criteo's base rate is near
+25%: the false-positive-rate axis is dominated by the majority class, so
+ROC-AUC flatters every model and compresses the differences a comparison
+exists to show, and accuracy is degenerate — predicting nothing scores
+75%. PR-AUC (against a base-rate floor of 0.252, not zero) or a confusion
+matrix is the headline.
+
+**The baseline is the anchor.** Every headline number below is a distance
+to the [non-private baseline](algorithms/baselines.md) run on the same
+stages, same data, same model, same optimizer — not an absolute.
+
+**The reported ε carries stated caveats.** The preprocessing statistics
+(medians, frequencies, means, standard deviations) are fitted on the
+training split, which is the standard benchmark convention and *not* a
+private operation; the hyperparameter searches are likewise unaccounted.
+Every notebook states this next to its ε rather than absorbing it.
+
+## Notebook 01 — DP-SGD alone, over its grid
+
+`notebooks/tuning/01-dp-sgd-on-criteo.ipynb`. DP-SGD at ε = 3, δ = 1e-6
+over 10,000 steps, swept over clipping norm × learning rate at a fixed
+budget. The selected configuration reaches test log-loss 0.5140 (constant
+predictor: 0.5645) and PR-AUC 0.4460.
+
+Two findings shape everything downstream. **What costs utility at this
+budget is the clipping, not the noise**: a noiseless control — same
+clipping, same sampling, noise multiplier at zero for practical purposes —
+lands on the *same* log-loss and the same PR-AUC. And **the run is
+essentially finished by 2,000 steps**: the last 8,000 steps spend a third
+of the ε for a fourth-decimal improvement.
+
+![DP-SGD on Criteo: log-loss, calibration, and recall against training steps](assets/nb01-tuning.png)
+
+*Test log-loss, ECE, and recall against training steps (log scale), from
+notebook 01. The dotted line is the constant predictor.*
+
+## Notebook 02 — DP-SGD against non-private SGD
+
+`notebooks/comparisons/02-dp-sgd-vs-sgd-baseline-on-criteo.ipynb`. Both
+arms on identical data (norm bound `R = 2.0`), identical initialization,
+identical step count; grids of comparable size, the same selection rule on
+both sides; the DP arm at ε = 3, δ = 1e-6.
+
+| test | log-loss | ECE | PR-AUC |
+|---|---|---|---|
+| constant | 0.5645 | 0.0000 | 0.2520 |
+| plain SGD | 0.5123 | 0.0051 | 0.4462 |
+| DP-SGD (ε = 3) | 0.5402 | 0.0705 | 0.4456 |
+
+**At this budget the ranking cost is not measurable and the calibration
+cost is.** Test PR-AUC differs by 0.0006 — and the sign of that gap flips
+under a three-seed repeat, so the arms cannot be separated on ranking. The
+log-loss gap of 0.0279 is real, and its decomposition puts it almost
+entirely in the calibration term (+0.0265) rather than resolution
+(−0.0008): the private model ranks as well as the baseline but its stated
+probabilities are off. At each model's F1 operating point the two land on
+the same F1 of 0.4879.
+
+![Test precision-recall curves for plain SGD and DP-SGD](assets/nb02-dp-sgd-vs-sgd.png)
+
+*Test precision–recall, from notebook 02: the two curves lie on top of
+each other. Markers sit at each model's validation-F1 operating point;
+the dotted floor is the base rate.*
+
+![Test reliability curves for plain SGD and DP-SGD](assets/nb02-reliability.png)
+
+*The other half of the finding, from notebook 02: test reliability over
+15 equal-mass bins. Plain SGD (ECE 0.0051) hugs the diagonal; DP-SGD at
+ε = 3 (ECE 0.0705) under-predicts through the low and middle bins.*
+
+## Notebook 04 — DP-SGD against its two projected counterparts
+
+`notebooks/comparisons/04-dp-sgd-vs-its-projected-counterparts-on-criteo.ipynb`.
+Six arms differing *only* in the optimizer object: unwrapped DP-SGD,
+[`l1_projected`](transforms/l1-projection.md) (iterates) at a loose and a
+binding radius, and `l1_projected_estimate` (estimate) at a loose radius,
+the paper-prescribed radius, and a radius forced below what the mechanism
+releases. Both wrappers post-process, so every arm carries the identical
+ε = 3.
+
+**The finding is two-sided.** Constraining the *iterates* costs what
+constraining iterates costs: at half the control's final norm, 0.0040
+log-loss and 0.0124 PR-AUC, with 7 of 40 parameters zeroed — flat until
+the ball is tight, then steep. Constraining the *estimate* does nothing at
+any radius with a principle behind it: identical to the control at the
+paper's prescription, and worth 0.0001 log-loss even when forced 2.1×
+below the released norm. The instrumented reason: the released estimate
+settles at ‖g̃‖₁ ≈ 0.41 against a prescribed ball of 31.6 — the identity
+map with 1.9 decades to spare. The denoising bound wants sparse
+per-example gradients, and a dense 40-parameter logistic model has none.
+
+![L1 norm of the iterates under each projection](assets/nb04-projection-comparison.png)
+
+*Where the iterates go, from notebook 04: the unprojected control, the
+iterate-projected arm pinned to its ball from step 59 on, and the
+estimate-projected arm tracking the control almost unchanged.*
+
+## Notebook 05 — Private SpiderBoost against DP-SGD
+
+`notebooks/comparisons/05-spiderboost-vs-dp-sgd-on-criteo.ipynb`.
+Notebook 02's protocol inherited verbatim; both arms at ε = 3, δ = 1e-6,
+exactly 10,000 steps; 60- and 54-run grids, per-model frozen operating
+points, three-seed repeats.
+
+| test | log-loss | ECE | PR-AUC |
+|---|---|---|---|
+| constant | 0.5645 | 0.0000 | 0.2520 |
+| DP-SGD | 0.5123 | 0.0041 | 0.4462 |
+| Private SpiderBoost | 0.5123 | 0.0038 | 0.4466 |
+
+**The finding is a null one, and it is instructive.** Every gap in the
+table sits inside the spread its own arm produces from a change of seed:
+at this budget, on this problem, choosing between dimma's two private
+algorithms costs nothing that survives a re-run — at a measured wall-clock
+overhead of 1.05× per step. What *moves* the comparison is tuning: a gap
+between two private algorithms reported without both grids beside it is
+mostly a gap between two tuning efforts.
+
+One caveat the matched table cannot show: **the two epsilons are
+comparable quantities, not comparable guarantees.** DP-SGD's sensitivity
+is *enforced* by an operation; Private SpiderBoost's is
+[*assumed* from constants](algorithms/spiderboost.md) an enforced feature
+bound supplies. A reader who takes the two ε = 3 columns as the same
+promise has read one of them wrong.
+
+![Test precision-recall curves for Private SpiderBoost and DP-SGD](assets/nb05-spiderboost-vs-dp-sgd.png)
+
+*Test precision–recall, from notebook 05: the dashed SpiderBoost curve
+sits exactly on DP-SGD's across the whole range — the null finding in one
+image.*
