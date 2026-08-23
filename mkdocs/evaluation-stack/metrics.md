@@ -59,8 +59,9 @@ Two consequences worth knowing before quoting a number:
 
 - **These take probabilities, never logits.** The round trip through a
   probability loses the tail, so when the model is confident,
-  `dimma.models.losses.batch_bce_loss` — which reads the logit
-  directly — is the one to quote.
+  `dimma.models.losses.batch_bce_loss` — which takes parameters and a
+  batch, and scores from the logits it computes rather than from a
+  probability — is the one to quote.
 - **`log_loss` clips probabilities away from 0 and 1.** That clip is a
   floor on how bad a single record is allowed to look, not a fact about
   the model.
@@ -93,8 +94,9 @@ Two properties follow, and both are easy to get wrong:
   Criteo that floor is 0.252, so a PR-AUC of 0.45 is read against 0.252
   and not against 0. The floor also moves between datasets for reasons
   having nothing to do with the model.
-- **It is blind to everything a proper score sees.** Read it alongside
-  `dimma.metrics.scoring`, never instead of it.
+- **It is blind to the half of a proper score that calibration carries.**
+  What it reads is a monotone-invariant proxy for the other half. Read it
+  alongside `dimma.metrics.scoring`, never instead of it.
 
 Ties are broken by an unstable sort, shared deliberately between
 `ranking` and `operating_point` so the two cannot drift apart on the one

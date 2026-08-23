@@ -39,9 +39,11 @@ agreeing on the digest were trained on the same bytes.
     It is the reason several steps below are no-ops here.
 
 The data is CC-BY-NC-SA 4.0 — non-commercial, share-alike. The loader
-prints the attribution once per process, to **stderr** rather than
-stdout, so that a caller piping results cannot mistake the notice for
-output.
+prints the attribution on the download that first fetches the file, and
+at most once per process, to **stderr** rather than stdout, so that a
+caller piping results cannot mistake the notice for output. A run over an
+already-cached file does not reprint it, so the obligation travels with
+the data rather than with the notice.
 
 ## Loading options are axes, never a mode name
 
@@ -87,7 +89,8 @@ its ε rather than absorbing it.
 
 The chain, when `preprocess=True`:
 
-- **Missing values** are filled with the train-split median.
+- **Missing values in `I1..I13`** are filled with the train-split
+  median.
 - **`I1..I13` are clipped at 0 and passed through `log1p`.** On this file
   both are close to no-ops, and `log1p` over values already in `[0, 1]`
   compresses them monotonically into `[0, log 2]` rather than taming a
@@ -98,9 +101,11 @@ The chain, when `preprocess=True`:
 - **Categoricals are frequency-encoded**, each ID replaced by its
   relative frequency in the training split. There is no hashing trick and
   no vocabulary cutoff: one float per column instead of one per category,
-  where 26 columns whose cardinalities reach `10^5` would otherwise
-  become hundreds of thousands of one-hot columns. An ID unseen in
-  training encodes as `0.0`, which is the frequency it was observed with.
+  where the 26 columns' training vocabularies — 551,908 distinct IDs
+  between them — would otherwise become one-hot columns by the hundred
+  thousand. An ID unseen in training encodes as `0.0`, which is the
+  frequency it was observed with. This half of the chain runs only under
+  `features="all"`.
 
 **Per-record maps** touch one record at a time and read nothing across
 them, so they are free. `dimma.datasets.preprocessing.cap_feature_norms`
@@ -170,10 +175,11 @@ ran the same code, not because two copies of a permutation agree.
 
 Two things the loader deliberately does not do:
 
-- **No validation split.** It returns train and test. The notebooks cut a
-  validation set out of the training rows themselves — 700,000 train and
-  100,000 validation, held out once and never re-drawn — which is what
-  makes every sampling rate in those runs a rate over 700,000.
+- **No validation split.** It returns train and test. The comparison
+  notebooks that need one cut it out of the training rows themselves —
+  700,000 train and 100,000 validation, held out once and never
+  re-drawn — which makes their sampling rates rates over 700,000. The
+  notebooks that do not need one train on all 800,000.
 - **No subsampling option.** "1M" is a property of the pinned file, not a
   parameter.
 
