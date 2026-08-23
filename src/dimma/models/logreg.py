@@ -71,7 +71,7 @@ def forward_sparse(params: dict, idx: jax.Array, val: jax.Array) -> jax.Array:
     Computes exactly what :func:`forward` computes on the dense row the
     pair implies - zeros everywhere except ``val[k]`` at ``idx[k]`` -
     without materialising it. At the widths this is for, materialising
-    it is the whole difficulty; ADR-0019 records the numbers. ``vmap``
+    it is the whole difficulty; ADR-0020 records the numbers. ``vmap``
     it for a batch, the same way as :func:`forward`.
 
     Parameters

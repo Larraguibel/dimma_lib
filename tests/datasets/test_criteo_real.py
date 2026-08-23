@@ -144,7 +144,7 @@ def test_the_one_hot_width_is_the_train_split_vocabulary(one_hot):
     less those only the held-out rows carry, plus a reserved slot per
     column and the 13 numeric features. A dense float32 matrix of that
     width over a million rows is 2.2 TB, which is why the split is
-    stored as pairs. The exact number is quoted in ADR-0019 and in two
+    stored as pairs. The exact number is quoted in ADR-0020 and in two
     docstrings, so drift in it has to fail here."""
     assert one_hot.num_features == 551_947
     assert one_hot.num_features == len(INT_COLS) + sum(

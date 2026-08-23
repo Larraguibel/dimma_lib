@@ -60,7 +60,7 @@ the ``features`` axis. It one-hot encodes ``C1..C26`` at their native
 train-split cardinalities — 552k columns at the default split, out of
 the 623k distinct IDs the whole file carries — and hands back the
 indices each row occupies and the values it puts there rather than a
-matrix, because the dense one would be 2.2 TB. ADR-0019 records why it
+matrix, because the dense one would be 2.2 TB. ADR-0020 records why it
 is its own function, and what the exact entry count per row is for.
 
 License
@@ -211,7 +211,7 @@ def _split_frame(
     """Cut the frame in two by a seeded permutation of its rows.
 
     Every loader in this module splits here, which is the shared-split
-    guarantee ADR-0019 records.
+    guarantee ADR-0020 records.
     """
     rng = np.random.default_rng(seed)
     perm = rng.permutation(len(df))
@@ -268,7 +268,7 @@ def _one_hot_column(
     ``vocabulary`` is the sorted distinct IDs of the training split, the
     same fitted-on-train convention `_frequency_encode` uses, so local ID
     ``l`` sits at ``offset + l`` and an ID the training split never saw
-    goes to the slot reserved at ``offset + cardinality``; ADR-0019
+    goes to the slot reserved at ``offset + cardinality``; ADR-0020
     records what that slot is for.
     """
     pos_safe, seen = _locate_in_vocabulary(vocabulary, codes)
@@ -504,7 +504,7 @@ def load_criteo_one_hot(
     ``features`` axis, because the return type is what changes:
     `SparseTabularSplit`, not `TabularSplit`. Everything else stays a
     parameter and is recorded in metadata, as ADR-0008 requires;
-    ADR-0019 records why the encoding is the one thing that is not.
+    ADR-0020 records why the encoding is the one thing that is not.
 
     On first call, downloads ``criteo_1M.parquet`` (~45 MB) from
     https://huggingface.co/datasets/eldieguinpo/criteo-1M into the cache
@@ -572,14 +572,14 @@ def load_criteo_one_hot(
     Notes
     -----
     There is no ``standardize`` axis: centring a one-hot column would
-    fill it, turning 39 stored values back into 551,947. ADR-0019
+    fill it, turning 39 stored values back into 551,947. ADR-0020
     records why the axis is absent rather than present and refused.
 
     Every row has exactly 39 entries — 13 numeric and one per
     categorical column, the reserved unseen slot included — so for a
     linear model the per-example gradient's sparsity ``s`` is known by
     construction rather than assumed, which is what assumption (A.7) of
-    Ghazi et al. 2024 asks for; ADR-0019 records what rests on it.
+    Ghazi et al. 2024 asks for; ADR-0020 records what rests on it.
 
     The vocabulary and the median are fitted on the training split
     alone, and like every fitted statistic in this module they are not

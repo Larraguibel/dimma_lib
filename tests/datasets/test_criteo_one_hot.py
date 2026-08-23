@@ -7,7 +7,7 @@ metadata and the prose. They also pin the two claims that make the
 representation worth having: that the pairs reconstruct the one-hot
 matrix nobody built, and that `forward_sparse` returns what `forward`
 would have returned on it. And the seam with `load_criteo`: the same
-seed holds out the same rows. ADR-0019 records why each of these is
+seed holds out the same rows. ADR-0020 records why each of these is
 the thing to pin.
 """
 

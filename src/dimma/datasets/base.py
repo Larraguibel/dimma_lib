@@ -68,7 +68,7 @@ class SparseTabularSplit(NamedTuple):
     where ``s = idx.shape[1]``. Every row has exactly ``s`` stored
     entries and the indices within a row are distinct, so a row's ℓ₂
     norm is its ``val`` vector's and the count is a property of the
-    encoding rather than of the record. ADR-0019 records what that
+    encoding rather than of the record. ADR-0020 records what that
     exactness is for.
 
     Attributes
