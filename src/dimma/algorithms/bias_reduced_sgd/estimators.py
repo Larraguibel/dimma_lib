@@ -12,9 +12,8 @@ Algorithm 1, the projection mechanism: perturb the batch mean, then
 project onto the ``l_1`` ball. Algorithm 2, Gaussian ``l_1``-recovery,
 is the other one the paper defines; it drops in later as a second
 factory of this shape, and swapping it changes accuracy rather than
-the step's arithmetic. Why Algorithm 1 stands in the slots the
-pseudocode gives to Algorithm 2 is the package docstring's first
-departure, derived in `docs/research/algorithm-1-carries-algorithm-3.md`.
+the step's arithmetic. Why Algorithm 1 stands in its slots at all is
+the package docstring's first departure.
 
 A factory rather than a bare function because of what varies. The
 clipping norm, the radius and the noise multiplier are fixed for a run;
@@ -24,11 +23,8 @@ call site is what lets a single estimator serve every slot.
 
 Makes no privacy claim about a run: `GaussianMeanClaim` says what one
 release is, and turning a sequence of releases into an (epsilon, delta)
-belongs to `dimma.accounting`, per ADR-0003. The claim type itself is
-defined there, in `dimma.accounting.bias_reduced_sgd`, beside the
-`check_claim` that reads it and the closed form that prices it; it is
-re-exported here so an estimator names its claim without reaching
-across, and so that the accountant never imports algorithm code.
+belongs to `dimma.accounting`, per ADR-0003. The claim type is defined
+there and re-exported here; its own docstring says why.
 """
 
 from __future__ import annotations
@@ -76,10 +72,9 @@ def projection_estimator(
 
     ``K = B_1(0, radius)``, one global ``l_1`` ball across the whole
     parameter pytree. The noise scale is
-    ``noise_multiplier * 2 * clip_norm / batch_size`` — the multiplier
+    ``noise_multiplier * 2 * clip_norm / batch_size``: the multiplier
     is dimensionless and fixed for the run, while the scale tracks each
-    slot's own cardinality, which is what makes one number serve all
-    four slots of a step, ``batch_size == 1`` included.
+    slot's own cardinality, ``batch_size == 1`` included.
 
     Parameters
     ----------

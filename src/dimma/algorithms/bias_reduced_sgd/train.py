@@ -24,15 +24,12 @@ output rule's reservoir; the `jax` key drives the Gaussian noise. A run
 is reproducible from those two seeds, and the realized number of steps
 is a function of the sampling seed alone.
 
-`train` imports `dimma.accounting`, which no other loop does. The
-filter *is* the termination condition, so the alternative was inlining
-its closed form here — which would put a privacy claim outside
-`accounting/`, and ADR-0003 forbids that. ADR-0018 records it.
+`train` imports `dimma.accounting`, which no other loop does: the
+filter *is* the termination condition. ADR-0018 records why.
 
 Parameters are carried as a host `numpy` float64 pytree for the reason
-:mod:`~dimma.algorithms.bias_reduced_sgd.step` gives: the debias
-combine is a near-cancellation amplified by ``1 / p_N``. The releases
-are float32 all the same, converted per call.
+:mod:`~dimma.algorithms.bias_reduced_sgd.step` gives; the releases are
+float32 all the same, converted per call.
 """
 
 from __future__ import annotations
@@ -111,21 +108,15 @@ def train(
 
     **It takes a budget, not noise scales.** Every other loop here
     takes scales because its accountant sits upstream (ADR-0011's
-    closing line). This one cannot: the budget *is* the termination
-    condition, and Algorithm 4's own signature is ``(x_0, S, eps,
-    delta)``. `train` calls
-    `dimma.accounting.bias_reduced_sgd.inner_noise_multiplier` and
-    hands the result to ``estimator``. Taking a budget *and* a
-    multiplier would let a caller pass a pair that disagrees, and the
-    run would then be filtered against one number and perturbed
-    according to another.
+    closing line); this one cannot, because the budget *is* the
+    termination condition. `train` calls
+    `dimma.accounting.bias_reduced_sgd.inner_noise_multiplier` itself,
+    so no caller can pass a budget and a multiplier that disagree.
 
     **``estimator`` is a factory, not a scale.** It is the seam. Which
     estimator ran is visible to the accountant through the *type* of
-    its `estimators.MeanEstimator.claim`, and this loop passes that
-    claim to `dimma.accounting.bias_reduced_sgd.check_claim` before it
-    takes a step, so no accountant's assumptions ever sit on another
-    estimator's code.
+    its `estimators.MeanEstimator.claim`, which this loop hands to
+    `dimma.accounting.bias_reduced_sgd.check_claim` before it steps.
 
     **There is no ``steps`` argument.** ``T`` is an output, in
     `Run.steps`. That is the point of the filter: the random stopping
@@ -163,22 +154,19 @@ def train(
         rule's reservoir, in that order within a step.
     target_epsilon, target_delta
         The run's whole budget, and the only thing that sets its
-        length. ``target_epsilon`` must be at most 1: Lemma 5.3's
-        amplification is stated there, and above it the per-step price
-        would be an under-estimate. ``target_delta`` should further be
-        below ``1 / n ** 2``, which Lemma 5.5's stopping-time bound
-        assumes; above that the privacy still holds and the bound on
-        how many steps to expect does not.
+        length. ``target_epsilon`` must be at most 1 and
+        ``target_delta`` should further be below ``1 / n ** 2``; the
+        package docstring's preconditions say what each assumption
+        buys.
     clip_norm
         The paper's ``L``, enforced by stage 4 (ADR-0012) rather than
         assumed of the loss. It reaches the step through
-        ``estimator``'s claim and appears nowhere else, so the bound
-        and the noise calibrated against it cannot be given different
-        numbers.
+        ``estimator``'s claim and appears nowhere else.
     radius
-        The radius of ``K``, and the caller's number per ADR-0015. The
-        paper's is ``clip_norm * sqrt(s)`` for ``s``-sparse per-sample
-        gradients; the library states no sparsity it cannot check.
+        The radius of ``K``, and the caller's number per ADR-0015. See
+        `estimators.projection_estimator`'s ``radius`` for the paper's
+        ``clip_norm * sqrt(s)`` mapping and why it does not grow with
+        the batch.
     estimator
         The inner mean estimator's *factory*, called once as
         ``estimator(clip_norm=..., radius=..., noise_multiplier=...)``.
@@ -223,14 +211,13 @@ def train(
 
     Notes
     -----
-    **What is reported, and why it is not a metric.** ADR-0006's rule
-    against training loops reporting metrics is about evaluating the
-    model on the training data, which is an unaccounted access.
-    `Run.steps` and `Run.spent` are neither: both are deterministic
-    functions of the public coin and the budget, and no data enters
-    either. They are also necessary. ``T`` is an output of this
-    algorithm, so a caller who did not receive it could not account for
-    the run at all.
+    **What is reported, and why it is not a metric.** `Run.steps` and
+    `Run.spent` are deterministic functions of the public coin and the
+    budget, so ADR-0006's rule against loops reporting metrics — which
+    is about evaluating the model on the training data — does not
+    reach them. They are also necessary: ``T`` is an output of this
+    algorithm, so a caller who did not receive it could not account
+    for the run at all.
 
     No epsilon is computed here. Turning `Run.spent` into a number is
     ``accounting.bias_reduced_sgd.epsilon(run.spent,
@@ -238,12 +225,10 @@ def train(
     `accounting/` per ADR-0003.
 
     Because the filter is asked about the current step *before* it
-    runs, the whole transcript is inside the filter: the realized
-    ``epsilon(run.spent)`` is at or below ``target_epsilon / 2`` and
-    the realized delta at or below ``target_delta / 4``. The run's
-    guarantee is still ``(target_epsilon, target_delta)`` by Lemma 5.3,
-    with the remaining ``eps/2, 3 delta/4`` of slack unspent. See the
-    package docstring's third departure.
+    runs, the realized ``epsilon(run.spent)`` is at or below
+    ``target_epsilon / 2`` and the realized delta at or below
+    ``target_delta / 4``, while the run's guarantee is still
+    ``(target_epsilon, target_delta)`` by Lemma 5.3 (ADR-0018).
 
     No optimizer state is returned. `train` accepts none, so it cannot
     consume what it would hand back, and a caller who resumed from it
