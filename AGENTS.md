@@ -24,3 +24,8 @@ The five canonical triage roles, each label named after itself. See
 
 Single-context — one `CONTEXT.md` and `docs/adr/` at the repo root. See
 `docs/agents/domain.md`.
+
+### Docstrings
+
+NumPy/numpydoc style, at two depths — full for the public API, one line for
+private helpers. See `docs/agents/docstrings.md`.
