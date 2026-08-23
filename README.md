@@ -65,10 +65,60 @@ an algorithm end to end — so nothing has to be assembled before a method can b
 run once. Loops take a caller-supplied per-sample loss over arbitrary pytrees,
 and the algorithms never import the models.
 
+## Getting started
+
+Not on PyPI yet; install from a clone. Python 3.12 or newer.
+
+```
+git clone https://github.com/Larraguibel/dimma_lib
+cd dimma_lib
+pip install -e .
+```
+
+The base install runs JAX on CPU. Extras: `[gpu]` for the CUDA build,
+`[datasets]` for the Criteo loader, `[notebooks]` for the notebook stack,
+`[dev]` for tests.
+
+Train logistic regression with DP-SGD on toy data, then ask the accountant
+what it cost:
+
+```python
+import jax
+import jax.numpy as jnp
+import numpy as np
+
+from dimma.accounting.sampling import poisson_gaussian_epsilon
+from dimma.algorithms.dp_sgd import train as dp_sgd
+from dimma.core import updates
+from dimma.models.logreg import init_params
+from dimma.models.losses import per_sample_bce_loss
+
+rng = np.random.default_rng(0)
+x = jnp.asarray(rng.normal(size=(1000, 20)))
+y = jnp.asarray(rng.integers(0, 2, size=1000), dtype=jnp.float32)
+
+params = init_params(jax.random.key(0), num_features=20)
+params = dp_sgd.train(
+    per_sample_bce_loss, params, updates.sgd(0.1),
+    x, y, key=jax.random.key(1), rng=np.random.default_rng(1),
+    steps=200, expected_batch_size=100,
+    clip_norm=1.0, noise_multiplier=2.0,
+)
+
+epsilon = poisson_gaussian_epsilon(
+    sampling_probability=100 / 1000, noise_multiplier=2.0,
+    num_compositions=200, target_delta=1e-5,
+)  # 3.68
+```
+
+The loop returns parameters and nothing else. Evaluation and the epsilon
+claim both belong to the caller: the first spends privacy budget the
+algorithm does not account for, and the second is only valid if the run
+matched the mechanism the accountant assumes.
+
 ## Layout
 
-`core`, the dataset loaders, the reference model, the first three algorithms
-and the first baseline; the rest is being ported in.
+Everything below has landed; the rest is being ported in.
 
 ```
 src/dimma/
@@ -105,33 +155,41 @@ src/dimma/
 │   ├── pytree.py            pytree vector-space ops
 │   └── projection.py        ℓ₁-ball geometry
 ├── datasets/                loaders; no algorithm imports these
+│   ├── base.py               the split type every loader returns
 │   ├── criteo.py             Criteo 1M — columns × chain × standardization
 │   └── preprocessing.py      maps loaders compose; the per-record norm cap
-├── metrics/                 evaluation; nothing here takes a threshold
+├── metrics/                 evaluation; selection is threshold-free,
+│   │                        reporting is not
 │   ├── scoring.py            log loss, Brier, normalized entropy
 │   ├── calibration.py        reliability curve, ECE, observed/expected
-│   └── decomposition.py      calibration − resolution + uncertainty
+│   ├── decomposition.py      calibration − resolution + uncertainty
+│   ├── ranking.py            precision/recall at every cut; area under it
+│   └── operating_point.py    the best-F1 cut, and the counts at a cut
 ├── models/                  reference models; no algorithm imports these
 │   ├── logreg.py             logistic regression — one linear layer
 │   └── losses.py             sigmoid BCE, per-sample and batch
 └── transforms/              post-processing that composes across algorithms
     └── projection.py         the ℓ₁-ball projection, at the optimizer seam
 
-tests/                       mirrors src/dimma/
-docs/agents/                 agent-facing context, not published
+tests/                       mirrors src/dimma/, plus integration/
+docs/                        ADRs, agent context, research notes; not published
 ```
 
 ## Documentation
 
-Narrative documentation is built with MkDocs and covers the conceptual
+Narrative documentation will be published with MkDocs, covering the conceptual
 foundations of DP-SGD, the JAX tooling the library is built on, the library's
 own structure, and — per algorithm — where the paper's theory and the
-implementation diverge. The MkDocs source is the published site; `docs/` is
-agent-facing context and is not published.
+implementation diverge. It does not exist yet. Until then, design decisions
+are recorded in `docs/adr/` and the domain vocabulary in `CONTEXT.md`; the
+rest of `docs/` is agent-facing context and is not published.
+
+Executed runs live in [`notebooks/`](notebooks/README.md): per-algorithm
+hyperparameter tuning, and head-to-head comparisons under a shared protocol.
 
 ## Status
 
-Pre-`0.1.0`, and empty by design: this repository is a deliberate re-cut of an
-earlier `dimma` whose documentation had grown around a single algorithm.
-Implementation is being ported here selectively. The public API is unstable
-until `1.0`.
+Pre-release: nothing is tagged and the public API is unstable until `1.0`.
+This repository is a deliberate re-cut of an earlier `dimma`; implementation
+is still being ported in selectively, and the layout above shows what has
+landed.
