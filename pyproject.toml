@@ -7,6 +7,10 @@ name = "dimma"
 version = "0.1.0"
 description = ""
 readme = "README.md"
+# Nothing in src/ uses 3.12 syntax; the floor comes from the stack. jax and
+# jaxlib 0.11 and numpy 2.5 all declare Requires-Python >=3.12, and the gpu
+# extra pins jax at that floor, so a lower number here would advertise an
+# install that does not resolve.
 requires-python = ">=3.12"
 dependencies = [
     "dp-accounting>=0.4.3",
