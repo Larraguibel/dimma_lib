@@ -96,13 +96,19 @@ to the data is recorded in the returned split's `metadata` rather than
 implied by a mode name. Loading options are independent axes — which
 columns, whether they are preprocessed, whether they are standardized —
 never preset names, because a preset name reliably hides the half of the
-behaviour that matters for interpreting a result.
+behaviour that matters for interpreting a result;
+[datasets](../evaluation-stack/datasets.md) walks the axes and what each
+one costs.
 
 `models` ships reference models as pairs of plain functions over plain
 pytrees — `init_params` and a `forward` — with matching per-sample losses
 in `dimma.models.losses`. See [working with pytrees](../pytrees.md) for
-why that contract is all a model needs to be here.
+why that contract is all a model needs to be here, and
+[models](../evaluation-stack/models.md) for why the reference model is
+logistic regression.
 
 `metrics` is the evaluation stack, threshold-free where it selects and
-thresholded only where it reports; the reasoning is on the
-[evaluation page](../evaluation.md).
+thresholded only where it reports;
+[metrics](../evaluation-stack/metrics.md) gives the reasoning behind each
+number, and the [evaluation page](../evaluation.md) reports what they came
+out to be.

@@ -13,7 +13,8 @@ instead of merely adjacent, and a method and its privacy-free counterpart —
 which dimma ships, [built from the same stages](algorithms/baselines.md) —
 differ in the privacy and nothing else.
 
-The library covers four fronts:
+The library covers seven fronts. Four of them are the optimizers
+themselves:
 
 - **Non-classical DP optimizers** — the reason the library exists:
   private methods beyond classical DP-SGD.
@@ -30,6 +31,22 @@ The library covers four fronts:
   not algorithms and compose across them, applied at a seam every
   algorithm shares.
 
+The other three sit beside the training loop rather than inside it. No
+algorithm imports them, and none of them is a neutral utility — each
+carries choices that decide what a reported number means:
+
+- **[Datasets](evaluation-stack/datasets.md)** — loaders whose options
+  are independent axes rather than mode names, so that what was done to
+  the data is recorded rather than implied. Standardization defaults
+  *off*, because on Criteo it is paid for in the privacy budget.
+- **[Models](evaluation-stack/models.md)** — one reference model,
+  logistic regression, chosen because its Lipschitz and smoothness
+  constants are known in closed form, which is what lets a private
+  method's preconditions be computed rather than asserted.
+- **[Metrics](evaluation-stack/metrics.md)** — strictly proper scores for
+  selection, one named cut for reporting, and no ROC-AUC or accuracy
+  anywhere.
+
 !!! note
 
     **Structure of this site.** [Getting started](getting-started.md)
@@ -40,10 +57,14 @@ The library covers four fronts:
     pipeline and the [package map](library/map.md);
     [working with pytrees](pytrees.md) covers the JAX idiom everything is
     written in. Each [algorithm](algorithms/index.md) has one page, each
-    [transform](transforms/index.md) likewise, and
-    [evaluation on Criteo](evaluation.md) collects the executed
-    comparisons. The [API reference](reference/index.md) documents the
-    people-facing surface.
+    [transform](transforms/index.md) likewise. The evaluation stack —
+    [datasets](evaluation-stack/datasets.md),
+    [models](evaluation-stack/models.md),
+    [metrics](evaluation-stack/metrics.md) — has a page each for the
+    choices behind it, and [evaluation on Criteo](evaluation.md) collects
+    what the executed comparisons found. The
+    [API reference](reference/index.md) documents the people-facing
+    surface.
 
 ## Status
 

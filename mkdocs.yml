@@ -53,6 +53,10 @@ nav:
   - Transforms:
       - The transform seam: transforms/index.md
       - ℓ₁ projection: transforms/l1-projection.md
+  - The evaluation stack:
+      - Datasets: evaluation-stack/datasets.md
+      - Models: evaluation-stack/models.md
+      - Metrics: evaluation-stack/metrics.md
   - Evaluation on Criteo: evaluation.md
   - API reference:
       - What is documented here: reference/index.md

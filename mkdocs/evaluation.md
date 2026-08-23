@@ -16,7 +16,10 @@ each configuration pick its own, which is not a comparison. So models are
 *selected* on strictly proper scores (log loss), read alongside
 calibration and ranking, and *reported* with a headline confusion matrix
 at one named cut, chosen under a stated rule and frozen before the split
-it is reported on. `dimma.metrics` is built around exactly this line.
+it is reported on. `dimma.metrics` is built around exactly this line, and
+the [metrics page](evaluation-stack/metrics.md) gives the reasoning for
+each number below — proper scores, the calibration–resolution split, and
+how far a difference is trusted.
 
 **ROC-AUC and accuracy are never reported.** Criteo's base rate is near
 25%: the false-positive-rate axis is dominated by the majority class, so
