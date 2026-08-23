@@ -32,10 +32,10 @@ Numbers are allocated from one sequence, not one per folder. The next notebook
 takes the next free number whichever folder it lands in, so a number never
 implies a kind and reading the sequence never implies reading a folder.
 
-A number is reserved by whatever claimed it, including work not on `main`. 03 is
-absent from `main` and reserved anyway: it lives on an unmerged branch, where it
-closed issue #9, and it is already cited from there. A gap in the sequence is
-expected and is not an invitation to fill it.
+A number is reserved by whatever claimed it, including work not on `main`. 03
+was held that way while it sat unmerged on a branch and was already cited from
+there; it has since landed. A gap in the sequence is expected and is not an
+invitation to fill it.
 
 `explorations/` is disposable by construction — its contents may be deleted
 without a decision record — and that is the reason work there does not earn a

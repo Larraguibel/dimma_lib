@@ -16,9 +16,6 @@ sits. Numbers are unique across all three folders, are never reused, and are
 never renamed. A new notebook takes the next free number whichever folder it
 lands in — the sequence is one sequence, not one per folder.
 
-03 is missing here because it lives on an unmerged branch, where it closed issue
-#9. Its number stays reserved; nothing else takes it.
-
 ## Explorations are disposable
 
 Anything in `explorations/` may be deleted without ceremony. A result worth
