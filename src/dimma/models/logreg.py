@@ -16,6 +16,12 @@ None. ``x`` is a feature vector of length ``d`` and this module never
 asks what its entries mean, so encoding a dataset into one - which
 columns are dense, how categoricals are represented, what is normalized
 - stays with the caller.
+
+There are two forwards over the same parameters and the same model.
+``forward`` takes the dense vector; ``forward_sparse`` takes the
+coordinates a row occupies and the values it puts there, for a ``d``
+wide enough that the dense vector is the problem. They return the same
+logit and differ in nothing else.
 """
 
 from __future__ import annotations
@@ -57,3 +63,33 @@ def forward(params: dict, x: jax.Array) -> jax.Array:
         Unsquashed; the sigmoid is applied by the loss, not here.
     """
     return jnp.dot(params["w"], x) + params["b"]
+
+
+def forward_sparse(params: dict, idx: jax.Array, val: jax.Array) -> jax.Array:
+    """The logit for a **single** example held as index/value pairs.
+
+    Computes exactly what :func:`forward` computes on the dense row the
+    pair implies - zeros everywhere except ``val[k]`` at ``idx[k]`` -
+    without materialising it. At the widths this is for, materialising
+    it is the whole difficulty; ADR-0019 records the numbers. ``vmap``
+    it for a batch, the same way as :func:`forward`.
+
+    Parameters
+    ----------
+    params
+        Pytree as returned by :func:`init_params`, whose ``w`` is
+        ``(num_features,)`` - the width the indices address, not their
+        count.
+    idx : jax.Array, shape ``(s,)``
+        Integer coordinates into ``w``. Out-of-range entries clamp
+        rather than raise, which is JAX's indexing rule and not a check
+        this function adds.
+    val : jax.Array, shape ``(s,)``
+        The value at each coordinate.
+
+    Returns
+    -------
+    logit : jax.Array, shape ``()``
+        Unsquashed; the sigmoid is applied by the loss, not here.
+    """
+    return jnp.dot(params["w"][idx], val) + params["b"]
