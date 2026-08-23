@@ -24,7 +24,12 @@ import numpy as np
 import pytest
 
 from dimma.datasets._cache import get_cache_dir
-from dimma.datasets.criteo import CAT_COLS, INT_COLS, load_criteo
+from dimma.datasets.criteo import (
+    CAT_COLS,
+    INT_COLS,
+    load_criteo,
+    load_criteo_one_hot,
+)
 
 CACHED = get_cache_dir("datasets") / "criteo_1M.parquet"
 
@@ -122,3 +127,47 @@ def test_every_mode_splits_the_same_rows(splits):
     labels = [np.asarray(splits[mode].y_train) for mode in MODES]
     for other in labels[1:]:
         assert np.array_equal(labels[0], other)
+
+
+# --------------------------------------------------------------------
+# The one-hot mode, whose width is a fact about this file
+# --------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def one_hot():
+    return load_criteo_one_hot(download=False)
+
+
+def test_the_one_hot_width_is_the_train_split_vocabulary(one_hot):
+    """Over half a million columns: the 623k distinct IDs the file holds,
+    less those only the held-out rows carry, plus a reserved slot per
+    column and the 13 numeric features. A dense float32 matrix of that
+    width over a million rows is 2.2 TB, which is why the split is
+    stored as pairs. The exact number is quoted in ADR-0019 and in two
+    docstrings, so drift in it has to fail here."""
+    assert one_hot.num_features == 551_947
+    assert one_hot.num_features == len(INT_COLS) + sum(
+        n + 1 for n in one_hot.metadata["n_categories"]
+    )
+
+
+def test_a_million_rows_hold_thirty_nine_entries_each(one_hot):
+    """`s` is exact at this width, not estimated from it."""
+    assert one_hot.idx_train.shape == (800_000, 39)
+    assert one_hot.idx_test.shape == (200_000, 39)
+
+
+def test_int32_is_wide_enough_for_the_indices(one_hot):
+    """Which the fixture cannot say: 200 rows address 351 columns."""
+    idx = np.asarray(one_hot.idx_train)
+    assert idx.dtype == np.int32
+    assert idx.max() < one_hot.num_features
+    assert one_hot.num_features < np.iinfo(np.int32).max
+
+
+def test_the_one_hot_split_is_the_split_every_other_mode_got(one_hot, splits):
+    """A different representation of the same benchmark, not another
+    benchmark."""
+    expected = np.asarray(splits[("numeric", True, False)].y_train)
+    assert np.array_equal(np.asarray(one_hot.y_train), expected)

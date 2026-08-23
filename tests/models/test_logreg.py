@@ -72,6 +72,34 @@ def test_vmap_over_a_batch_matches_the_loop(trained):
     assert jnp.allclose(batched, looped, atol=1e-6)
 
 
+def test_forward_sparse_matches_forward_on_the_dense_row(trained):
+    """The pair and the vector it stands for are the same example."""
+    idx = jnp.array([4, 0, 2])
+    val = jnp.array([1.0, -3.0, 0.5])
+    dense = jnp.zeros(D).at[idx].set(val)
+    assert jnp.allclose(logreg.forward_sparse(trained, idx, val),
+                        logreg.forward(trained, dense), atol=1e-6)
+
+
+def test_forward_sparse_gradient_touches_only_the_stored_indices(trained):
+    """Why the count of stored entries is the gradient's support: the
+    coordinates a row does not occupy get nothing."""
+    idx = jnp.array([1, 3])
+    val = jnp.array([2.0, -1.0])
+    grad = jax.grad(logreg.forward_sparse)(trained, idx, val)
+    assert jnp.allclose(grad["w"][idx], val)
+    assert jnp.count_nonzero(grad["w"]) == idx.shape[0]
+
+
+def test_forward_sparse_vmaps_and_jits(trained):
+    idx = jnp.array([[0, 1], [2, 4]])
+    val = jnp.array([[1.0, 2.0], [-1.0, 0.5]])
+    batched = jax.jit(jax.vmap(logreg.forward_sparse, in_axes=(None, 0, 0)))
+    looped = jnp.stack([logreg.forward_sparse(trained, idx[i], val[i])
+                        for i in range(2)])
+    assert jnp.allclose(batched(trained, idx, val), looped, atol=1e-6)
+
+
 def test_forward_is_jittable(trained):
     x = jnp.ones((D,))
     assert jnp.allclose(jax.jit(logreg.forward)(trained, x),

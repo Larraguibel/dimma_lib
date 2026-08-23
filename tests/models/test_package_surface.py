@@ -25,7 +25,8 @@ def test_the_modules_resolve(name):
 
 
 @pytest.mark.parametrize("name", [
-    "init_params", "forward", "per_sample_bce_loss", "batch_bce_loss",
+    "init_params", "forward", "forward_sparse", "per_sample_bce_loss",
+    "batch_bce_loss",
     "hashed_init_params", "hashed_forward", "hash_buckets",
     "per_sample_hashed_bce_loss", "MLP",
 ])

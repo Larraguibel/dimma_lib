@@ -1,12 +1,12 @@
-"""The Criteo 1M sample: a click-prediction benchmark, eight ways.
+"""The Criteo 1M sample: a click-prediction benchmark, nine ways.
 
-Three independent choices, so eight modes. *Which columns* — the 13
-integer features, or all 39 including the 26 categorical ones. *Whether
-they are preprocessed* — the stored values as they come, or the fill,
-clip, log1p and frequency encoding described in
-``metadata["preprocessing"]``. *Whether they are standardized* — column
-means and standard deviations fitted on the training split, or the
-scales the columns already had. Stored is not raw; see below.
+`load_criteo` has three independent choices, so eight modes. *Which
+columns* — the 13 integer features, or all 39 including the 26
+categorical ones. *Whether they are preprocessed* — the stored values
+as they come, or the fill, clip, log1p and frequency encoding described
+in ``metadata["preprocessing"]``. *Whether they are standardized* —
+column means and standard deviations fitted on the training split, or
+the scales the columns already had. Stored is not raw; see below.
 
 All three are parameters rather than one mode name, because a mode name
 is where the interesting part goes missing: the earlier version of this
@@ -53,6 +53,16 @@ file ``preprocess=True`` alone is close to a no-op for the integer
 block, and ``standardize=True`` is the step that does what its name
 suggests — which is the other half of why the two are separate axes.
 
+The ninth mode
+--------------
+``load_criteo_one_hot`` is a separate function, not a third value on
+the ``features`` axis. It one-hot encodes ``C1..C26`` at their native
+train-split cardinalities — 552k columns at the default split, out of
+the 623k distinct IDs the whole file carries — and hands back the
+indices each row occupies and the values it puts there rather than a
+matrix, because the dense one would be 2.2 TB. ADR-0019 records why it
+is its own function, and what the exact entry count per row is for.
+
 License
 -------
 The Criteo data is CC-BY-NC-SA 4.0. ``dimma`` is not; only the data
@@ -70,7 +80,12 @@ import numpy as np
 from dimma.datasets._attribution import emit_once
 from dimma.datasets._cache import get_cache_dir
 from dimma.datasets._download import download_with_checksum
-from dimma.datasets.base import TabularSplit, arrays_to_split
+from dimma.datasets.base import (
+    SparseTabularSplit,
+    TabularSplit,
+    arrays_to_sparse_split,
+    arrays_to_split,
+)
 from dimma.datasets.preprocessing import cap_feature_norms
 
 try:
@@ -118,6 +133,18 @@ _DESCRIPTIONS = {
         "C* are integer category IDs, which float32 represents exactly below "
         "2**24. No NaN in either block. No fill, no log1p, no encoding."
     ),
+    ("one_hot", False): (
+        "39 features as index/value pairs. I1-I13 exactly as stored, cast "
+        "to float32, at indices 0-12 — already scaled into [0, 1] upstream, "
+        "not raw Criteo integers, and with no NaN to preserve; no fill, no "
+        "log1p."
+    ),
+    ("one_hot", True): (
+        "39 features as index/value pairs. I1-I13 at indices 0-12: NaN filled "
+        "with the train-split median, clipped below at 0, then log1p — the "
+        "fill and the clip are no-ops on stored values that carry neither NaN "
+        "nor negatives, and log1p acts on [0, 1]."
+    ),
     ("all", True): (
         "39 features. I1-I13: NaN filled with the train-split median, clipped "
         "below at 0, log1p — the fill and the clip are no-ops on stored values "
@@ -142,6 +169,77 @@ _STANDARDIZATION = {
     ),
 }
 
+#: Appended to whichever one-hot entry above `preprocess` chose. Written
+#: once because `preprocess` governs the integer chain alone: the
+#: categorical half of the sentence is the same either way.
+_ONE_HOT_CATEGORICAL = (
+    " C1-C26 one-hot at their native train-split cardinalities, each "
+    "column holding its own block of the index space and one slot "
+    "reserved for IDs unseen in the training split, so every row carries "
+    "exactly 39 entries whatever it holds. Not standardized: centring a "
+    "one-hot column fills it, and the sparsity is the point."
+)
+
+
+def _read_frame(
+    columns: list[str], root: str | Path | None, download: bool
+) -> pd.DataFrame:
+    """Find or fetch the cached parquet and read ``columns`` and the label."""
+    if root is None:
+        root = get_cache_dir("datasets")
+    else:
+        root = Path(root)
+        root.mkdir(parents=True, exist_ok=True)
+    parquet_path = root / _FILENAME
+
+    if not parquet_path.exists():
+        if not download:
+            raise FileNotFoundError(
+                f"Criteo parquet not found at {parquet_path} and "
+                f"download=False. Pass download=True, or put the file there "
+                f"yourself."
+            )
+        download_with_checksum(_URL, parquet_path, _SHA256)
+        emit_once("criteo:license", _LICENSE_NOTICE)
+
+    return pd.read_parquet(parquet_path, columns=columns + [LABEL_COL])
+
+
+def _split_frame(
+    df: pd.DataFrame, test_fraction: float, seed: int
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Cut the frame in two by a seeded permutation of its rows.
+
+    Every loader in this module splits here, which is the shared-split
+    guarantee ADR-0019 records.
+    """
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(len(df))
+    n_test = int(round(len(df) * test_fraction))
+    test_idx, train_idx = perm[:n_test], perm[n_test:]
+    return df.iloc[train_idx], df.iloc[test_idx]
+
+
+def _norm_bound_clause(feature_norm_bound: float | None) -> str:
+    """The sentence a cap adds to the chain's prose, or nothing."""
+    if feature_norm_bound is None:
+        return ""
+    return (
+        f" Every row then rescaled to l2 norm at most "
+        f"{feature_norm_bound}, one record at a time."
+    )
+
+
+def _locate_in_vocabulary(
+    vocabulary: np.ndarray, codes: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Where each code sits in the sorted ``vocabulary``, and whether it is
+    there at all — an absent code's position is clipped into range, so the
+    mask is what says it means nothing."""
+    pos = np.searchsorted(vocabulary, codes)
+    pos_safe = np.clip(pos, 0, vocabulary.shape[0] - 1)
+    return pos_safe, vocabulary[pos_safe] == codes
+
 
 def _frequency_encode(
     train_codes: np.ndarray, codes: np.ndarray
@@ -154,13 +252,28 @@ def _frequency_encode(
     of this library. Categories absent from the training split encode as
     0.0, which is the frequency they were observed with.
     """
-    uniq, counts = np.unique(train_codes, return_counts=True)
+    vocabulary, counts = np.unique(train_codes, return_counts=True)
     freq = counts / train_codes.shape[0]
 
-    pos = np.searchsorted(uniq, codes)
-    pos_safe = np.clip(pos, 0, uniq.shape[0] - 1)
-    seen = uniq[pos_safe] == codes
-    return np.where(seen, freq[pos_safe], 0.0).astype(np.float32), uniq.shape[0]
+    pos_safe, seen = _locate_in_vocabulary(vocabulary, codes)
+    encoded = np.where(seen, freq[pos_safe], 0.0).astype(np.float32)
+    return encoded, vocabulary.shape[0]
+
+
+def _one_hot_column(
+    vocabulary: np.ndarray, codes: np.ndarray, offset: int
+) -> np.ndarray:
+    """Send each category ID to its index in this column's block.
+
+    ``vocabulary`` is the sorted distinct IDs of the training split, the
+    same fitted-on-train convention `_frequency_encode` uses, so local ID
+    ``l`` sits at ``offset + l`` and an ID the training split never saw
+    goes to the slot reserved at ``offset + cardinality``; ADR-0019
+    records what that slot is for.
+    """
+    pos_safe, seen = _locate_in_vocabulary(vocabulary, codes)
+    local = np.where(seen, pos_safe, vocabulary.shape[0])
+    return (offset + local).astype(np.int32)
 
 
 def _prepare_integers(
@@ -300,43 +413,18 @@ def load_criteo(
             f"Unknown features {features!r}. Expected 'numeric' or 'all'."
         )
 
-    if root is None:
-        root = get_cache_dir("datasets")
-    else:
-        root = Path(root)
-        root.mkdir(parents=True, exist_ok=True)
-    parquet_path = root / _FILENAME
-
-    if not parquet_path.exists():
-        if not download:
-            raise FileNotFoundError(
-                f"Criteo parquet not found at {parquet_path} and "
-                f"download=False. Pass download=True, or put the file there "
-                f"yourself."
-            )
-        download_with_checksum(_URL, parquet_path, _SHA256)
-        emit_once("criteo:license", _LICENSE_NOTICE)
-
     columns = INT_COLS if features == "numeric" else INT_COLS + CAT_COLS
-    df = pd.read_parquet(parquet_path, columns=columns + [LABEL_COL])
-
-    rng = np.random.default_rng(seed)
-    perm = rng.permutation(len(df))
-    n_test = int(round(len(df) * test_fraction))
-    test_idx, train_idx = perm[:n_test], perm[n_test:]
-    train_df, test_df = df.iloc[train_idx], df.iloc[test_idx]
+    df = _read_frame(columns, root, download)
+    train_df, test_df = _split_frame(df, test_fraction, seed)
 
     y_train = train_df[LABEL_COL].to_numpy(dtype=np.float32)
     y_test = test_df[LABEL_COL].to_numpy(dtype=np.float32)
 
     description = (
-        _DESCRIPTIONS[(features, preprocess)] + _STANDARDIZATION[standardize]
+        _DESCRIPTIONS[(features, preprocess)]
+        + _STANDARDIZATION[standardize]
+        + _norm_bound_clause(feature_norm_bound)
     )
-    if feature_norm_bound is not None:
-        description += (
-            f" Every row then rescaled to l2 norm at most "
-            f"{feature_norm_bound}, one record at a time."
-        )
     metadata: dict = {
         "features": features,
         "preprocess": preprocess,
@@ -391,4 +479,200 @@ def load_criteo(
 
     return arrays_to_split(
         x_train, y_train, x_test, y_test, device=device, metadata=metadata
+    )
+
+
+def load_criteo_one_hot(
+    preprocess: bool = True,
+    root: str | Path | None = None,
+    download: bool = True,
+    test_fraction: float = 0.2,
+    seed: int = 0,
+    device: str = "cpu",
+    feature_norm_bound: float | None = None,
+) -> SparseTabularSplit:
+    """Load the Criteo 1M sample one-hot encoded, as a sparse split.
+
+    All 39 features, with ``C1..C26`` one-hot at the cardinalities they
+    have in the training split: 551,947 columns on the real file at the
+    default split. The dense matrix would be 2.2 TB in float32, so a row
+    comes back as the 39 indices it occupies and the 39 values it puts
+    there, and the dense one is never built.
+    `dimma.models.logreg.forward_sparse` consumes the pair directly.
+
+    A separate function rather than a third value on `load_criteo`'s
+    ``features`` axis, because the return type is what changes:
+    `SparseTabularSplit`, not `TabularSplit`. Everything else stays a
+    parameter and is recorded in metadata, as ADR-0008 requires;
+    ADR-0019 records why the encoding is the one thing that is not.
+
+    On first call, downloads ``criteo_1M.parquet`` (~45 MB) from
+    https://huggingface.co/datasets/eldieguinpo/criteo-1M into the cache
+    directory and verifies its SHA256. Later calls reuse the cached file.
+
+    Parameters
+    ----------
+    preprocess : bool, default True
+        Governs the integer chain alone: median fill, clip at 0 and
+        ``log1p`` on ``I1..I13``, as in `load_criteo` and recorded in
+        ``metadata["preprocessing"]``. With ``False`` the stored values
+        go into ``val`` cast to float32 and nothing else. It does not
+        reach ``C1..C26``, which are one-hot either way — that is what
+        this function is named for, and an axis that could turn it off
+        would be a different loader.
+    root : str | Path | None, default None
+        Cache directory. ``None`` uses ``get_cache_dir("datasets")``.
+    download : bool, default True
+        With ``False``, a missing file raises instead of being fetched.
+    test_fraction : float, default 0.2
+        Fraction of rows held out for testing.
+    seed : int, default 0
+        Seed for the train/test permutation. The same seed and fraction
+        hold out the same rows here as in `load_criteo`, so a one-hot
+        run is comparable with the other eight modes rather than merely
+        run on the same file.
+    device : str, default "cpu"
+        Target JAX device: ``"cpu"``, ``"gpu"``, or ``"cuda"``.
+    feature_norm_bound : float | None, default None
+        With a value, every row is rescaled to ``l_2`` norm at most that
+        much, last in the chain and one record at a time, and the bound
+        is recorded in ``metadata["feature_norm_bound"]``. A row's norm
+        is its ``val`` vector's, since the indices within a row are
+        distinct, so the cap applies to ``val`` and means what it means
+        in `load_criteo`. ADR-0012 records what it is for and what a
+        wider one costs.
+
+    Returns
+    -------
+    SparseTabularSplit
+        ``idx_*`` are ``(n, 39)`` int32 and ``val_*`` ``(n, 39)``
+        float32: columns 0-12 are the numeric features at indices 0-12,
+        columns 13-38 the one-hot entry for ``C1..C26`` with value 1.0
+        — the value before any cap, since a ``feature_norm_bound``
+        rescales the whole ``val`` row afterwards.
+        ``num_features`` is the width the indices address.
+        ``metadata`` carries ``"encoding"``, ``"preprocess"``,
+        ``"preprocessing"`` (the chain in prose), ``"columns"``,
+        ``"int_cols"``, ``"cat_cols"``, ``"n_categories"`` — the distinct
+        IDs each ``C*`` column had in the training split, as in
+        `load_criteo` — ``"column_offsets"``, where each column's block
+        begins, ``"num_features"`` again for provenance,
+        ``"license"``, and ``"source"``. A ``feature_norm_bound`` that
+        was enforced is carried back under that name.
+
+    Raises
+    ------
+    ValueError
+        If ``feature_norm_bound`` is not finite and positive.
+    FileNotFoundError
+        If ``download=False`` and the file is not in the cache.
+    RuntimeError
+        If a downloaded file's SHA256 does not match the pinned digest.
+
+    Notes
+    -----
+    There is no ``standardize`` axis: centring a one-hot column would
+    fill it, turning 39 stored values back into 551,947. ADR-0019
+    records why the axis is absent rather than present and refused.
+
+    Every row has exactly 39 entries — 13 numeric and one per
+    categorical column, the reserved unseen slot included — so for a
+    linear model the per-example gradient's sparsity ``s`` is known by
+    construction rather than assumed, which is what assumption (A.7) of
+    Ghazi et al. 2024 asks for; ADR-0019 records what rests on it.
+
+    The vocabulary and the median are fitted on the training split
+    alone, and like every fitted statistic in this module they are not
+    privatized; ADR-0008 records the caveat that puts on a reported ε.
+    """
+    columns = INT_COLS + CAT_COLS
+    df = _read_frame(columns, root, download)
+    train_df, test_df = _split_frame(df, test_fraction, seed)
+
+    y_train = train_df[LABEL_COL].to_numpy(dtype=np.float32)
+    y_test = test_df[LABEL_COL].to_numpy(dtype=np.float32)
+
+    if preprocess:
+        int_train, int_test = _prepare_integers(
+            train_df[INT_COLS], test_df[INT_COLS]
+        )
+    else:
+        int_train = train_df[INT_COLS].to_numpy(dtype=np.float32)
+        int_test = test_df[INT_COLS].to_numpy(dtype=np.float32)
+
+    n_int = len(INT_COLS)
+    width = len(columns)
+    idx_train = np.empty((int_train.shape[0], width), dtype=np.int32)
+    idx_test = np.empty((int_test.shape[0], width), dtype=np.int32)
+    # Ones, because a one-hot entry's value is 1.0 and only the numeric
+    # block below overwrites what it finds here.
+    val_train = np.ones((int_train.shape[0], width), dtype=np.float32)
+    val_test = np.ones((int_test.shape[0], width), dtype=np.float32)
+
+    numeric_idx = np.arange(n_int, dtype=np.int32)
+    idx_train[:, :n_int] = numeric_idx
+    idx_test[:, :n_int] = numeric_idx
+    val_train[:, :n_int] = int_train
+    val_test[:, :n_int] = int_test
+
+    offsets: list[int] = []
+    cardinalities: list[int] = []
+    offset = n_int
+    for j, col in enumerate(CAT_COLS):
+        train_codes = train_df[col].to_numpy()
+        test_codes = test_df[col].to_numpy()
+        vocabulary = np.unique(train_codes)
+        cardinality = vocabulary.shape[0]
+        block_train = _one_hot_column(vocabulary, train_codes, offset)
+        block_test = _one_hot_column(vocabulary, test_codes, offset)
+        idx_train[:, n_int + j] = block_train
+        idx_test[:, n_int + j] = block_test
+        offsets.append(offset)
+        cardinalities.append(cardinality)
+        # The + 1 is the slot held for IDs this column never saw in
+        # training, which is what keeps every row at `width` entries.
+        offset += cardinality + 1
+    num_features = offset
+
+    description = (
+        _DESCRIPTIONS[("one_hot", preprocess)]
+        + _ONE_HOT_CATEGORICAL
+        + _norm_bound_clause(feature_norm_bound)
+    )
+    metadata: dict = {
+        "encoding": "one_hot",
+        "preprocess": preprocess,
+        "preprocessing": description,
+        "columns": list(columns),
+        "int_cols": list(INT_COLS),
+        "cat_cols": list(CAT_COLS),
+        "n_categories": cardinalities,
+        "column_offsets": offsets,
+        "num_features": num_features,
+        "license": "CC-BY-NC-SA 4.0",
+        "source": _URL,
+    }
+
+    if feature_norm_bound is not None:
+        # Last, as in `load_criteo`. A row's norm is its `val` vector's,
+        # because the indices within a row are distinct.
+        val_train, bound = cap_feature_norms(val_train, feature_norm_bound)
+        val_test, _ = cap_feature_norms(val_test, feature_norm_bound)
+        metadata["feature_norm_bound"] = bound
+
+    emit_once(
+        f"criteo:one_hot:{preprocess}:{feature_norm_bound}",
+        f"criteo: {description}",
+    )
+
+    return arrays_to_sparse_split(
+        idx_train,
+        val_train,
+        y_train,
+        idx_test,
+        val_test,
+        y_test,
+        num_features=num_features,
+        device=device,
+        metadata=metadata,
     )
