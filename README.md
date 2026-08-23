@@ -16,54 +16,51 @@ is organized around them:
 6. **Perturbation** — add noise calibrated to the privacy budget.
 7. **Optimization** — update parameters from the privatized gradient.
 
-dimma implements stages 1 and 3 through 7. Stages 1 and 3 through 6 are the ones
-that turn a gradient into a private one; stage 7 is the update rule the
-algorithms descend with, which their papers state and which is a few lines of
-pytree arithmetic. Stage 2 is the caller's model, which runs inside the
-per-sample loss they supply. Adam, which we use for a baseline, is named at the
-call site from `optax` and passes through the same seam, so a private method and
-its baseline can still be pinned to the same optimizer. `core` still names all
-seven, because the stage an algorithm does not choose is as much a part of its
-description as the ones it does.
+dimma implements stages 1 and 3 through 7; stage 2 is the caller's model, run
+inside the per-sample loss they supply. `core` names all seven, because the
+stage an algorithm does not choose is as much a part of its description as the
+ones it does.
 
-A non-private method is the same pipeline with stages 4 and 6 dropped, stage 3 changed into per-batch gradient and stage 1 relaxed to ordinary sampling. That is deliberate: it is what makes a private algorithm and its non-private counterpart comparable rather than merely adjacent, and it is why the baselines live inside the library instead of in a scripts folder next to it.
+A non-private method is the same pipeline with clipping and noise dropped,
+per-sample gradients relaxed to a batch gradient, and sampling relaxed to
+ordinary epochs. Building baselines from the same stages is what makes a
+private algorithm and its non-private counterpart comparable rather than
+merely adjacent.
 
 ## Scope
 
 dimma covers four fronts, all sharing the pipeline above.
 
-**Non-classical DP optimizers.** The primary front, and the reason the library exists: differentially private methods that are not classical DP-SGD — variance-reduced, second-order, sparsity-aware, and others as they are implemented. Private SpiderBoost (Arora et al., ICML 2023) is the first; bias-reduced sparse SGD (Ghazi et al., NeurIPS 2024) is the second.
+**Non-classical DP optimizers.** The primary front, and the reason the library
+exists: differentially private methods that are not classical DP-SGD —
+variance-reduced, second-order, sparsity-aware, and others as they are
+implemented. Private SpiderBoost (Arora et al., ICML 2023) is the first;
+bias-reduced sparse SGD (Ghazi et al., NeurIPS 2024) is the second.
 
-**Classical DP-SGD.** It is the reference every non-classical method is measured against, so it gets the same primitives, the same tests, and the same documentation as anything else.
+**Classical DP-SGD.** The reference every non-classical method is measured
+against, so it gets the same primitives, tests, and documentation as anything
+else.
 
 **Non-private baselines.** SGD, Adam, non-private SpiderBoost. Each is the
-privacy-free counterpart of something dimma implements privately, built from the
-same stages, so that "what did privacy cost here" is a controlled question.
+privacy-free counterpart of something dimma implements privately, built from
+the same stages, so that "what did privacy cost here" is a controlled question.
 
-**Transforms.** Changes to a quantity that are not algorithms and compose across
-them — for example the ℓ₁-ball projection applied to an already-privatized
-gradient as post-processing. Transforms are a separate axis from algorithms: one
-transform can apply to several algorithms, and an algorithm can use several. Not
-"mechanisms", which the literature reserves for a complete map carrying its own
-privacy analysis; a transform carries none.
+**Transforms.** Post-processing that composes across algorithms — for example
+the ℓ₁-ball projection applied to an already-privatized gradient. One transform
+can apply to several algorithms, and an algorithm can use several.
 
 Three layers sit underneath all four.
 
 **Core.** Architecture-agnostic pytree math that names no algorithm, model, or
-dataset and makes no privacy claim. Something enters `core` only if it implements
-one of the stages, or is stage-independent math with at least two consumers in
-different modules.
+dataset and makes no privacy claim.
 
 **Accounting.** Calibrating noise to a target `(ε, δ)`, and computing the `ε` a
-run spent. Standard mechanisms use Google's `dp-accounting`; the non-classical
-methods this library exists for usually fall outside its assumptions or are
-bounded too loosely by it, so those ship their own accountant alongside the
-algorithm.
+run spent. Standard mechanisms use Google's `dp-accounting`; methods that fall
+outside its assumptions ship their own accountant alongside the algorithm.
 
 **Training.** Reference models, losses, dataset loaders, and the loops that run
-an algorithm end to end — so nothing has to be assembled before a method can be
-run once. Loops take a caller-supplied per-sample loss over arbitrary pytrees,
-and the algorithms never import the models.
+an algorithm end to end. Loops take a caller-supplied per-sample loss over
+arbitrary pytrees, and the algorithms never import the models.
 
 ## Getting started
 
@@ -123,41 +120,41 @@ Everything below has landed; the rest is being ported in.
 ```
 src/dimma/
 ├── accounting/              where the privacy claims live
-│   ├── bias_reduced_sgd.py  Theorem A.4's (ε, δ)-filter, in closed form
+│   ├── bias_reduced_sgd.py  the (ε, δ) privacy filter, in closed form
 │   ├── lipschitz.py         L₀, L₁ and the step size, from an enforced bound
 │   ├── sampling.py          subsampled-Gaussian ε, via dp-accounting
 │   └── spiderboost.py       two subsampled Gaussians, composed
 ├── algorithms/              one package per algorithm
 │   ├── bias_reduced_sgd/     bias-reduced sparse SGD (Ghazi et al., 2024)
-│   │   ├── estimators.py       the inner mean estimator, behind a seam
-│   │   ├── step.py             two mechanisms; the debiased combine
+│   │   ├── estimators.py       the inner mean estimator, swappable
+│   │   ├── step.py             two noise additions; the debiased combination
 │   │   └── train.py            the loop the privacy filter stops
 │   ├── dp_sgd/               classical DP-SGD (Abadi et al., 2016)
 │   │   ├── step.py             one iteration; the privatized gradient
-│   │   └── train.py            the loop, and stage 1
+│   │   └── train.py            the loop, and the sampling
 │   ├── sgd/                  non-private SGD — DP-SGD's baseline
-│   │   ├── step.py             one iteration; no release, so one function
-│   │   └── train.py            the loop, and stage 1
+│   │   ├── step.py             one iteration; no privacy stages
+│   │   └── train.py            the loop, and the sampling
 │   └── spiderboost/          Private SpiderBoost (Arora et al., 2023)
-│       ├── step.py             two mechanisms; a release each, and its apply
-│       └── train.py            the loop, stage 1, and the output rule
+│       ├── step.py             the two privatized releases, and the update
+│       └── train.py            the loop, the sampling, and the output rule
 ├── core/                    the pipeline stages
 │   ├── sampling/            stage 1 — one module per sampler
-│   │   ├── dyadic.py          a fixed-size draw at a TGeom-drawn scale
+│   │   ├── dyadic.py          a fixed-size draw at a randomly drawn scale
 │   │   ├── poisson.py         the standard one; raises on an oversize draw
-│   │   ├── poisson_truncated.py   modified mechanism, unaccounted
-│   │   └── shuffled.py        ordinary epochs; not a mechanism at all
+│   │   ├── poisson_truncated.py   capped variant; no accountant covers it
+│   │   └── shuffled.py        ordinary epochs, nothing private
 │   ├── gradients.py         stage 3 — per-sample and batch gradients
 │   ├── clipping.py          stage 4
 │   ├── aggregation.py       stage 5 — sum/average, Poisson masking
 │   ├── noise.py             stage 6 — Gaussian and Laplace
-│   ├── updates.py           stage 7 — sgd, and the seam optax also fits
+│   ├── updates.py           stage 7 — sgd, and the interface optax also fits
 │   ├── pytree.py            pytree vector-space ops
 │   └── projection.py        ℓ₁-ball geometry
 ├── datasets/                loaders; no algorithm imports these
 │   ├── base.py               the split type every loader returns
-│   ├── criteo.py             Criteo 1M — columns × chain × standardization
-│   └── preprocessing.py      maps loaders compose; the per-record norm cap
+│   ├── criteo.py             the Criteo 1M loader
+│   └── preprocessing.py      composable preprocessing; the per-record norm cap
 ├── metrics/                 evaluation; selection is threshold-free,
 │   │                        reporting is not
 │   ├── scoring.py            log loss, Brier, normalized entropy
@@ -169,7 +166,7 @@ src/dimma/
 │   ├── logreg.py             logistic regression — one linear layer
 │   └── losses.py             sigmoid BCE, per-sample and batch
 └── transforms/              post-processing that composes across algorithms
-    └── projection.py         the ℓ₁-ball projection, at the optimizer seam
+    └── projection.py         the ℓ₁-ball projection of a privatized gradient
 
 tests/                       mirrors src/dimma/, plus integration/
 docs/                        ADRs, agent context, research notes; not published
