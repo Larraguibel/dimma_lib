@@ -30,6 +30,12 @@ dev = [
     "pytest>=8.0",
     "dimma[datasets]",
 ]
+# The site under mkdocs/ is built from this repo's own docstrings, so the
+# reference pages need the package importable alongside the site generator.
+docs = [
+    "mkdocs-material>=9,<10",
+    "mkdocstrings[python]>=0.27",
+]
 # Base jax is the CPU build; the CUDA kernels ship as a separate plugin, so a
 # plain install silently falls back to CPU. This extra pulls the plugin, which
 # carries its own CUDA userspace and needs only a >=580 NVIDIA driver on the

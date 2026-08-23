@@ -174,12 +174,13 @@ docs/                        ADRs, agent context, research notes; not published
 
 ## Documentation
 
-Narrative documentation will be published with MkDocs, covering the conceptual
-foundations of DP-SGD, the JAX tooling the library is built on, the library's
-own structure, and — per algorithm — where the paper's theory and the
-implementation diverge. It does not exist yet. Until then, design decisions
-are recorded in `docs/adr/` and the domain vocabulary in `CONTEXT.md`; the
-rest of `docs/` is agent-facing context and is not published.
+Narrative documentation is published with MkDocs at
+<https://larraguibel.github.io/dimma_lib/>, covering the conceptual
+foundations of applied DP optimization, the JAX tooling the library is built
+on, the library's own structure, each algorithm, and the executed Criteo
+comparisons. The MkDocs source (`mkdocs/`) is the published site; design
+decisions are recorded in `docs/adr/`, the domain vocabulary in `CONTEXT.md`,
+and the rest of `docs/` is agent-facing context — none of it published.
 
 Executed runs live in [`notebooks/`](notebooks/README.md): per-algorithm
 hyperparameter tuning, and head-to-head comparisons under a shared protocol.

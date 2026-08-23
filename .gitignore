@@ -35,3 +35,5 @@ htmlcov/
 
 # Implemented papers
 papers
+# Built docs site
+site/

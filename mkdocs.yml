@@ -1,0 +1,62 @@
+site_name: dimma
+site_url: https://larraguibel.github.io/dimma_lib/
+repo_url: https://github.com/Larraguibel/dimma_lib
+docs_dir: mkdocs
+
+theme:
+  name: material
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: numpy
+            show_source: false
+            show_root_heading: true
+            members_order: source
+
+extra_javascript:
+  - javascripts/katex.js
+  - https://unpkg.com/katex@0/dist/katex.min.js
+  - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
+
+extra_css:
+  - https://unpkg.com/katex@0/dist/katex.min.css
+
+nav:
+  - dimma: index.md
+  - Getting started: getting-started.md
+  - DP optimization in practice: dp-optimization-in-practice.md
+  - The library:
+      - The seven-stage pipeline: library/pipeline.md
+      - Package map and conventions: library/map.md
+  - Working with pytrees: pytrees.md
+  - Algorithms:
+      - Overview: algorithms/index.md
+      - DP-SGD: algorithms/dp-sgd.md
+      - Private SpiderBoost: algorithms/spiderboost.md
+      - Bias-reduced sparse SGD: algorithms/bias-reduced-sparse-sgd.md
+      - Non-private baselines: algorithms/baselines.md
+  - Transforms:
+      - The transform seam: transforms/index.md
+      - ℓ₁ projection: transforms/l1-projection.md
+  - Evaluation on Criteo: evaluation.md
+  - API reference:
+      - What is documented here: reference/index.md
+      - Core stages: reference/core.md
+      - Algorithms: reference/algorithms.md
+      - Transforms: reference/transforms.md
+      - Data, models, and metrics: reference/evaluation-stack.md
