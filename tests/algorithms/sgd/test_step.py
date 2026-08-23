@@ -48,8 +48,8 @@ def test_the_step_is_the_gradient_scaled_by_the_rate(grad_fn, zero_params,
 
 
 def test_the_gradient_is_the_mean_not_the_sum(grad_fn, zero_params, batch):
-    """`batch_grads` differentiates the mean, so no divisor appears in
-    the step and duplicating the batch does not double the move."""
+    """`batch_grads` differentiates the mean, so duplicating the batch
+    leaves the gradient where it was."""
     x_b, y_b = batch
     doubled = jnp.concatenate([x_b, x_b]), jnp.concatenate([y_b, y_b])
     assert tree_allclose(
@@ -102,7 +102,8 @@ def test_the_step_takes_no_mask():
 
 
 def test_the_step_takes_no_privacy_parameters():
-    """Stages 4 and 6 are dropped, not defaulted to something harmless."""
+    """Stages 4 and 6 are dropped, and the lot size they were scaled
+    against with them - not defaulted to something harmless."""
     names = set(inspect.signature(sgd_step.step).parameters)
     assert not names & {
         "clip_norm", "noise_multiplier", "expected_batch_size",

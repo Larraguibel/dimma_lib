@@ -1,8 +1,7 @@
 """The stages composed, as an algorithm would compose them.
 
-Each stage is covered in isolation elsewhere. This checks that they fit
-together: that the layouts one stage produces are the ones the next
-accepts, and that the whole chain survives `jax.jit`.
+Each stage is covered in isolation elsewhere; this checks that one
+stage's layouts are the next's, and that the chain survives `jax.jit`.
 """
 
 from __future__ import annotations

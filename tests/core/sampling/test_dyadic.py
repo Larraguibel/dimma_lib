@@ -40,7 +40,7 @@ def test_a_negative_max_scale_has_no_law():
 
 def test_the_scale_probabilities_are_definition_51():
     """``p_k = C_M / 2 ** k``, summing to one, with ``C_M`` in [0.5, 1]
-    as Remark 5.2 records."""
+    as Ghazi et al.'s Remark 5.2 records."""
     for m in [0, 1, 5, 24]:
         p = dyadic.scale_probabilities(m)
         c = 1.0 / (2.0 * (1.0 - 2.0 ** -(m + 1)))

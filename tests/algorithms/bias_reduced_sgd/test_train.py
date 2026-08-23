@@ -1,15 +1,8 @@
 """The bias-reduced loop: the coin, the filter, and the two output rules.
 
-`tests/accounting/test_bias_reduced_sgd.py` pins what the filter says.
-What is pinned here is that the loop asks it in the right place — after
-the coin and before the data — and that ``T`` comes out rather than
-going in.
-
-Every assertion about the run's length goes through the scales the loop
-actually drew, recorded off `dimma.core.sampling.dyadic` rather than
-re-drawn from a fresh generator: the loop consumes its sampling stream
-for the coin, the batch and the output rule's reservoir, so only the
-realized sequence is a replay of what happened.
+The accounting suite pins what the filter says; here, that the loop asks
+it after the coin and before the data, and that every assertion about a
+run's length reads the scales the loop actually drew.
 """
 
 from __future__ import annotations
@@ -142,22 +135,9 @@ def test_the_realized_step_count_matches_a_replay_of_the_coin(
 
 def test_no_gradient_is_taken_after_the_filter_refuses(
         sparse_problem, zero_params, key, rng, drawn_scales, drawn_batches):
-    """The ordering, counted.
-
-    Two gradient calls a step — one over the batch, one over the single
-    record — and not one more. Run under `jax.disable_jit` so the loss
-    is genuinely called rather than traced once per shape; the trace
-    count under jit is a different property, pinned below.
-
-    The refused step draws a scale and stops there: no batch, no rows
-    of ``x`` touched, no gradient. A budget check that ran after the
-    draw would still be a check, but it would be one whose input
-    depended on the data it is protecting.
-
-    Run on eight examples, where the price of a step is a large enough
-    share of the budget that the filter stops after a handful — nothing
-    here is about the length of the run, and eager execution is dear.
-    """
+    """Two gradient calls per admitted step and none at all after the
+    filter refuses, counted eagerly: the refused step draws its scale
+    and stops before any row of ``x`` is touched."""
     x, y, _ = sparse_problem
     small = 8
     x, y = x[:small], y[:small]
@@ -231,22 +211,9 @@ def test_a_run_is_reproducible_from_its_two_seeds(sparse_problem,
 # --- what the loop optimizes -----------------------------------------
 
 def quieter_than_the_budget(*, clip_norm, radius, noise_multiplier):
-    """The estimator seam, standing in for a run at a budget no test
-    can afford.
-
-    `inner_noise_multiplier` at ``eps = 1`` is about 142 — the paper's
-    constants divide the budget 32 ways before Algorithm 1 sees it —
-    and the debias weight then amplifies each release's noise back up
-    to about ``2 z L`` whatever the scale. At the sizes a test suite
-    can run, that puts the estimate far below its own noise, so a
-    reduction in the loss would be measuring the seed and not the loop.
-
-    This factory replaces the calibrated multiplier with a small one,
-    which is exactly what the seam is for: everything else — the coin,
-    the filter, the four slots, the debias, the update — is the run the
-    library ships. What is switched off is the size of the noise, not
-    the mechanism that adds it.
-    """
+    """Swap the calibrated multiplier for a small one, so that a run at
+    test sizes is not measuring its own noise. Only the size of the
+    noise changes; the mechanism around it is the shipped one."""
     del noise_multiplier
     return estimators.projection_estimator(
         clip_norm=clip_norm, radius=radius, noise_multiplier=0.05
@@ -365,18 +332,10 @@ def test_max_scale_bounds_every_draw(sparse_problem, zero_params, key, rng,
 
 def test_a_lower_max_scale_buys_more_steps(sparse_problem, zero_params,
                                            key):
-    """`max_scale` is a mechanism parameter and its price is legible:
-    a shorter ladder means cheaper steps, hence more of them, at the
-    cost of the bias bound of a batch of ``2 ** (M' + 1)`` rather than
-    of ``n``.
-
-    Two ladders far enough apart that the gap survives a single coin.
-    The expected price per step is about 9/1024 of the budget at
-    ``M' = 1`` and about 16/1024 at ``M' = 4``, so the shorter ladder
-    should buy something like three quarters more steps; asserting a
-    ratio rather than an ordering keeps this a statement about the
-    prices and not about one realized sequence of draws.
-    """
+    """A shorter ladder means cheaper steps and so more of them. The
+    asserted ratio comes from the expected prices, about 9/1024 of the
+    budget a step at ``M' = 1`` against 16/1024 at ``M' = 4``, so it
+    reads the prices rather than one realized sequence of draws."""
     x, y, _ = sparse_problem
     short_ladder, long_ladder = [
         float(np.mean([
@@ -406,22 +365,10 @@ def test_the_parameters_are_carried_in_float64(sparse_problem, zero_params,
 
 def test_an_optax_optimizer_reverts_to_float32(sparse_problem, zero_params,
                                                key, rng):
-    """The documented caveat, pinned rather than left as prose.
-
-    The float64 apply side survives only an optimizer whose arithmetic
-    is `numpy`'s. A `updates.Schedule` returns a `jax.numpy` scalar and
-    a stateful optax transformation carries `jax.numpy` state and
-    operates on it, and either pulls the update — and with it every
-    iterate the loop returns — back down to float32. Nothing raises:
-    this is a property of the arithmetic, not an error, so a caller who
-    needs the precision has to know to check.
-
-    ``optax.sgd`` at a constant rate happens *not* to downcast, because
-    it is a `jax.tree.map` multiplying by a Python float and nothing
-    else. That is a fact about one transformation and not a rule: it is
-    asserted here so the boundary is recorded, not so anyone leans on
-    it.
-    """
+    """The documented caveat: an optimizer carrying `jax.numpy` state or
+    a `jax.numpy` rate pulls the float64 apply side back to float32,
+    silently. Constant-rate ``optax.sgd`` happens not to, which is
+    recorded as a boundary and not as a rule to lean on."""
     x, y, _ = sparse_problem
     for optimizer in (optax.adam(0.01),
                       updates.sgd(optax.linear_schedule(0.01, 0.0, 20))):
@@ -470,9 +417,10 @@ def test_the_loop_traces_once_per_scale_it_sees(sparse_problem, zero_params,
 @pytest.mark.parametrize("target_epsilon", [1.5, 8.0, 0.0, -1.0])
 def test_an_epsilon_above_one_is_rejected(sparse_problem, zero_params, key,
                                           rng, target_epsilon):
-    """Lemma 5.3's amplification is stated for ``eps <= 1``; above it
-    every per-step price would be an under-estimate, so the run is
-    refused rather than filtered against a bound that is not one."""
+    """The budget must land in ``(0, 1]``. Above one, Lemma 5.3's
+    amplification no longer holds and every per-step price would be an
+    under-estimate; at or below zero there is nothing to spend. The run
+    is refused rather than filtered against a bound that is not one."""
     x, y, _ = sparse_problem
     with pytest.raises(ValueError, match="target_epsilon="):
         run_train(x, y, zero_params, rng, key,
@@ -500,8 +448,9 @@ def test_a_dataset_below_two_is_rejected(zero_params, key, rng):
 def test_a_max_scale_above_the_ceiling_is_rejected(sparse_problem,
                                                    zero_params, key, rng,
                                                    max_scale):
-    """``dyadic.max_scale(64) == 5``; above it the largest batch on the
-    ladder would not fit the training set."""
+    """``dyadic.max_scale(64) == 5``: above it the largest batch on the
+    ladder would not fit the training set, and below zero the ladder has
+    no rung to draw at."""
     x, y, _ = sparse_problem
     with pytest.raises(ValueError, match="max_scale="):
         run_train(x, y, zero_params, rng, key, max_scale=max_scale)

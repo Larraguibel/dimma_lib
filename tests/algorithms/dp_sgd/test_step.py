@@ -89,14 +89,25 @@ def test_released_noise_has_standard_deviation_sigma_c_over_l(grad_fn,
 
 def test_sensitivity_is_bounded_by_clip_over_the_expected_batch_size(
         grad_fn, zero_params, batch, key):
-    """What clipping buys: the noiseless estimate is bounded a priori."""
+    """What clipping buys: dropping one record moves ``g~`` by C/L at most.
+
+    The bound the accountant is handed, so it has to be the a priori one
+    — ``C/L``, known before any draw — and not anything the realized
+    batch got to widen.
+    """
     x_b, y_b, mask = batch
-    got = dp_step.privatized_gradient(
-        grad_fn, zero_params, x_b, y_b, mask, key,
-        expected_batch_size=B_EXPECTED, clip_norm=CLIP, noise_multiplier=0.0,
-    )
-    bound = CLIP * float(mask.sum()) / B_EXPECTED
-    assert jnp.linalg.norm(got["w"]) <= bound + 1e-5
+    args = dict(expected_batch_size=B_EXPECTED, clip_norm=CLIP,
+                noise_multiplier=0.0)
+    got = dp_step.privatized_gradient(grad_fn, zero_params, x_b, y_b, mask,
+                                      key, **args)
+
+    bound = CLIP / B_EXPECTED
+    for i in np.flatnonzero(np.asarray(mask)):
+        without = dp_step.privatized_gradient(
+            grad_fn, zero_params, x_b, y_b, mask.at[int(i)].set(0.0), key,
+            **args,
+        )
+        assert jnp.linalg.norm(got["w"] - without["w"]) <= bound + 1e-5
 
 
 def test_padding_does_not_contribute(grad_fn, zero_params, problem, key):

@@ -297,7 +297,8 @@ def test_the_loops_parameters_are_the_accountants_parameters(
 
 def test_a_whole_run_compiles_once_per_branch(problem, zero_params, key, rng,
                                               monkeypatch):
-    """Two branches, two compilations, however many steps the run takes."""
+    """Each branch's step function is entered once, however many steps
+    the run takes - which is what lets `jax.jit` compile it once."""
     compilations = {"anchor": 0, "variation": 0}
     anchor_step, variation_step = (spider_step.anchor_step,
                                    spider_step.variation_step)

@@ -1,8 +1,7 @@
 """The two mechanisms, against Algorithm 2's lines 9 and 13.
 
-This is the only seam at which a mechanism-level property is
-observable: `train` returns parameters, and by then both releases have
-been post-processed into an update.
+The only seam at which a mechanism-level property is observable: by the
+time `train` returns, both releases are an update.
 """
 
 from __future__ import annotations

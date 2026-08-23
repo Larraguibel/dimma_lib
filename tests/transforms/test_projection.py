@@ -200,7 +200,7 @@ def test_the_estimate_ball_is_global_across_leaves_not_per_leaf(params):
     assert not tree_allclose(fed, estimate)
 
 
-def test_the_denoising_bound_of_lemma_31(params):
+def test_the_denoising_bound_of_lemma_31():
     """Ghazi et al. 2024, Lemma 3.1: for an s-sparse mean with l_2 <= L
     and any dense noise, projecting the noisy estimate onto the ball of
     radius L*sqrt(s) satisfies |zhat - mean|_2 <= sqrt(2 L |xi|_inf sqrt(s)).

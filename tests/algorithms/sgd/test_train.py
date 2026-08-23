@@ -87,7 +87,7 @@ def test_the_loop_takes_no_key(problem, zero_params):
 
 def test_the_run_crosses_epoch_boundaries(problem, zero_params, rng):
     """600 examples at 100 a batch is six steps to an epoch; a 60-step
-    run reshuffles nine times and must not run out of batches."""
+    run reshuffles ten times and must not run out of batches."""
     x, y, _ = problem
     params = sgd_train.train(
         squared_error, zero_params, updates.sgd(0.1), x, y, rng,

@@ -1,8 +1,7 @@
 """Where a downloaded dataset lands, and who gets to decide.
 
-Every test redirects the cache root at ``tmp_path``: a test suite that
-writes into the user's real cache directory is a test suite that behaves
-differently on the second run.
+Every test redirects the cache root at ``tmp_path``, so nothing here
+behaves differently on the second run.
 """
 
 from __future__ import annotations

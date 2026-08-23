@@ -1,8 +1,7 @@
 """The inner mean estimator, against Section 3's Algorithm 1.
 
-The seam is where a mechanism-level property of the inner call is
-observable at all: by the time `step` has combined four of them, the
-noise scale of any one is gone.
+The seam is the last place one call's noise scale is observable: `step`
+combines four of them.
 """
 
 from __future__ import annotations
@@ -115,26 +114,9 @@ def test_the_claim_carries_the_clip_norm_and_the_multiplier():
 
 
 def test_the_second_moment_bound_of_the_research_note():
-    """`docs/research/algorithm-1-carries-algorithm-3.md`, point (b)+(c):
-    Algorithm 1 satisfies a Theorem-3.4-shaped second-moment estimate,
-    which is what lets it stand in Algorithm 3's four slots.
-
-    For an ``s``-sparse mean of ``l_2`` norm at most ``L``, with
-    ``sigma = 2L sqrt(2 ln(1.25/delta)) / (k eps)``::
-
-        E||zhat - zbar||^2  <=  min( d sigma^2,
-                                     8 L^2 sqrt(s ln(2d) ln(1.25/delta))
-                                     / (k eps) )
-
-    The derivation is *ours*, not the paper's: the paper states this
-    shape for Algorithm 2 and writes Algorithm 2 in the pseudocode. The
-    ``d`` sweep is what makes it non-vacuous — at small ``d`` the dense
-    branch binds, at large ``d`` the sparse one does, and the sparse
-    branch is the one that carries Lemma 5.4.
-
-    Modelled on ``tests/transforms/test_projection.py::
-    test_the_denoising_bound_of_lemma_31``.
-    """
+    """`docs/research/algorithm-1-carries-algorithm-3.md`, point (b)+(c),
+    swept over ``d`` so that each branch of the minimum binds somewhere
+    and neither is asserted vacuously."""
     clip_norm, s, k, epsilon, delta = 1.0, 5, 64, 1.0, 1e-5
     multiplier = math.sqrt(2.0 * math.log(1.25 / delta)) / epsilon
     sigma = multiplier * 2.0 * clip_norm / k

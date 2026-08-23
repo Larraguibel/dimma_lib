@@ -1,8 +1,7 @@
 """The public surface of `transforms`, as decided rather than as it happens
 to be.
 
-Same rule as `core` (ADR-0004): no functions are re-exported, so the
-import line names the transform being applied.
+Same rule as `core` (ADR-0004): no functions are re-exported.
 """
 
 from __future__ import annotations

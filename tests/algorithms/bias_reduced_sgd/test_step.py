@@ -1,12 +1,8 @@
 """The two mechanisms and the two applies, against Algorithm 3.
 
-The releases are where the mechanism is observable: by the time `step`
-returns, four private means have been combined into one update and none
-of them is recoverable from it.
-
-Every draw here is built by hand from `dimma.core.sampling.dyadic` or
-from explicit index arrays, so a failure points at this chunk rather
-than at the sampler.
+Every draw is built by hand from `dimma.core.sampling.dyadic` or from
+explicit index arrays, so a failure points here rather than at the
+sampler.
 """
 
 from __future__ import annotations
@@ -305,24 +301,9 @@ def _full_gradient(x, y, params):
 
 
 def test_the_debiased_estimator_is_unbiased_under_the_identity_estimator():
-    """Algorithm 3's whole point, as an identity rather than a bound.
-
-    With the inner estimator switched off — no noise, a ball nothing
-    reaches — Lemma 5.4's telescoping is exact: the bracket has mean
-    zero at every scale because ``B``, ``O`` and ``E`` are each uniform
-    draws of their own size, and ``G_0`` supplies the mean itself. So
-
-        E[G(x)] = grad F_S(x)
-
-    with no error term at all. On ``n = 8`` (hence ``M = 2``) every
-    outcome is enumerable: three scales, every subset of the right
-    size, every equal split of it, and every single record, each
-    weighted by its own probability.
-
-    The strongest pin available on the debiasing identity. It fails
-    loudly if the halves are ever not an exact equal partition, if the
-    weight is not ``1 / p_N``, or if ``G_0`` is dropped.
-    """
+    """Lemma 5.4's telescoping, exact rather than bounded: with the
+    inner estimator switched off, ``E[G] = grad F_S`` enumerated over
+    every outcome at ``n = 8``."""
     x, y, params = _exact_problem()
     n = 8
     assert dyadic.max_scale(n) == 2
@@ -366,18 +347,9 @@ def test_the_debiased_estimator_is_unbiased_under_the_identity_estimator():
 
 
 def test_the_near_unbiasedness_survives_noise_and_projection(sparse_problem):
-    """The same identity with the mechanism switched back on.
-
-    Noise is zero-mean but the projection is not affine, so the exact
-    identity becomes Lemma 5.4's bias bound. The telescoping leaves the
-    bias of the *largest* slot alone, which is why a bound written at
-    the full batch covers an estimator most of whose slots are tiny::
-
-        ||E[G] - grad F_S||  <=  L (s ln d ln(1/delta))^(1/4)
-                                 / sqrt(n eps)
-
-    with the note's ``ln d`` where the paper writes ``ln(d/s)``.
-    """
+    """The same identity with the mechanism on: the projection is not
+    affine, so exactness becomes Lemma 5.4's bias bound, taken with the
+    research note's ``ln d`` where the paper writes ``ln(d/s)``."""
     x, y, _ = sparse_problem
     clip_norm, delta, draws = 1.0, 1e-5, 2000
     multiplier = 0.02
@@ -484,32 +456,9 @@ def _float64_reference(x, y, params, indices, key, *, clip_norm, radius,
 
 def test_the_combine_matches_a_float64_reference_up_to_the_scale_law(
         sparse_problem):
-    """float64 on the apply side has a ceiling, and this is where it is.
-
-    Each float32 release carries rounding of order ``eps32 * clip_norm``
-    from its own sum, perturbation and projection, which converting to
-    float64 afterwards cannot remove. The signal in
-    ``G+ - 0.5 (G-_O + G-_E)`` cancels exactly while that rounding does
-    not, and ``1 / p_N`` then multiplies what is left by about
-    ``2 ** (N + 1)``::
-
-        relative error of G  <=  2 ** (N + 1) * eps32
-                                 / (4 * noise_multiplier)
-
-    A law over the whole ladder rather than a flat tolerance, because a
-    flat tolerance would hide exactly the regime dependence that
-    matters: at the top of a full-size ladder this reaches order one,
-    which is the ceiling the package docstring states and the reason
-    `max_scale` interacts with float32 at all.
-
-    Measured against a reference that repeats the *whole* step in host
-    float64 — gradients, clipping, means, projection — on the very noise
-    `jax.random` handed the float32 path, so the difference is rounding
-    and nothing else. Run at a small multiplier, where a release is
-    dominated by its mean rather than by its noise: that is the regime
-    the rounding floor ``eps32 * clip_norm`` describes, and the one in
-    which the amplification is visible rather than divided out.
-    """
+    """The combine matches the whole step replayed in host float64, on
+    the same noise, to a tolerance that grows up the ladder as the
+    debias weight ``1 / p_N`` does."""
     x, y, _ = sparse_problem
     clip_norm, radius, multiplier = 1.0, float(math.sqrt(S)), 1e-3
     params = {"w": jnp.zeros(D)}

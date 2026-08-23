@@ -1,12 +1,8 @@
-"""A synthetic Criteo file, so the four modes are testable without 45 MB.
+"""A synthetic Criteo file, so the eight modes are testable without 45 MB.
 
-The real sample is a cached download: tests gated on it do not run on a
-fresh checkout, and the ones that matter most here — what preprocessing
-does to a NaN, to a negative value, to a category the training split
-never saw — need planted rows the real file does not contain anyway.
-
-The frame below has the real schema and shape (label, I1..I13, C1..C26)
-with pathological values put where the split will send them.
+The real schema and shape (label, I1..I13, C1..C26), with the NaN, the
+negative value and the unseen category planted where the split will
+send them.
 """
 
 from __future__ import annotations

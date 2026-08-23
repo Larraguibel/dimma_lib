@@ -36,9 +36,14 @@ def test_vectors_already_inside_are_returned_bit_exactly():
 
 
 def test_all_zero_input_is_handled():
-    """Exercises the rho >= 1 guard."""
+    """The rho >= 1 guard: rho is 0 only at radius 0, and 0/0 only here.
+
+    Any positive radius makes the first coordinate count, so rho >= 1
+    already. The zero vector at radius zero is the one input that
+    reaches the guard with a zero cumulative sum behind it.
+    """
     x = jnp.zeros((5,))
-    out = projection.project_l1_ball(x, 1.0)
+    out = projection.project_l1_ball(x, 0.0)
     assert jnp.all(jnp.isfinite(out))
     assert jnp.all(out == 0.0)
 

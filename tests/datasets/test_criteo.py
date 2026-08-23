@@ -1,12 +1,8 @@
 """The eight modes, and the lines between them.
 
-Three claims are worth more than the shapes. First, that ``preprocess``
-is honest in both directions: ``False`` returns the stored bytes and
-``True`` returns exactly the chain the metadata says it returned.
-Second, that ``standardize`` is a separate axis and does nothing unless
-it is asked for, in either chain. Third, that every fitted statistic
-comes from the training split, so that a test-split row cannot influence
-the features of a training-split row.
+Three claims worth more than the shapes: that ``preprocess`` is honest
+in both directions, that ``standardize`` is a separate axis, and that
+every fitted statistic comes from the training split alone.
 """
 
 from __future__ import annotations
@@ -260,8 +256,8 @@ def test_standardizing_composes_onto_the_chain_it_follows(
 def test_standardizing_does_not_require_preprocessing(criteo_root):
     """The two axes are independent: the stored values can be
     standardized without the fill, the clip, the log1p or the encoding.
-    Checked on the categorical block, the half of the stored file that
-    the fixture leaves free of NaN."""
+    Checked on the categorical block, the 26 of the 39 stored columns
+    that the fixture leaves free of NaN."""
     x = np.asarray(load(criteo_root, "all", False, True).x_train)
     categorical = x[:, len(INT_COLS):]
     assert np.allclose(categorical.mean(axis=0), 0.0, atol=1e-5)
@@ -424,9 +420,10 @@ def test_capping_before_standardizing_would_not_have_bounded_anything(
     criteo_root,
 ):
     """The ordering is load-bearing, not stylistic: this is what the
-    other order would have produced."""
-    raw = np.asarray(load(criteo_root, "numeric", True, True).x_train)
-    wrong_order, _ = cap_feature_norms(raw, 1.0)
+    other order — cap the preprocessed features, standardize after —
+    would have produced."""
+    preprocessed = np.asarray(load(criteo_root, "numeric", True).x_train)
+    wrong_order, _ = cap_feature_norms(preprocessed, 1.0)
     restandardized = (wrong_order - wrong_order.mean(0)) / wrong_order.std(0)
     # Not marginally over: thirteen columns rescaled independently land
     # near sqrt(13), so the accountant would be handed a constant about

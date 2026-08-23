@@ -1,12 +1,8 @@
 """The estimate-side projection, both private loops, neither aware of it.
 
-`tests/transforms` covers the wrapper against the seam's contract; this
-file passes the same wrapped optimizer through both training loops. The
-estimate leaves no direct trace in what `train` returns, so the checks
-work the ball's two ends: a zero radius zeroes every estimate and pins
-the trajectory to its start, and a radius no estimate reaches leaves an
-equal-seed run indistinguishable from the unwrapped one. A middle
-radius must then differ from both, or the projection never bound.
+The estimate leaves no direct trace in what `train` returns, so the
+checks work the ball's two ends — a zero radius and a radius nothing
+reaches — and require a middle radius to differ from both.
 """
 
 from __future__ import annotations

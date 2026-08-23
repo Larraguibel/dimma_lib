@@ -1,8 +1,7 @@
 """The per-record feature-norm cap.
 
-What is worth pinning is not the arithmetic but the two properties the
-privacy argument rests on: that afterwards every row is inside the ball,
-and that the map read nothing across records to get there.
+The two properties the privacy argument rests on: every row inside the
+ball afterwards, and nothing read across records to get there.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from dimma.datasets.preprocessing import cap_feature_norms
 
 
 def rows() -> np.ndarray:
-    """Three rows over the bound, one under it, and one all-zero."""
+    """Norms 5, 1, 0, 10 and 0.07: at R = 1, two over and one exactly on."""
     return np.array(
         [
             [3.0, 4.0],      # norm 5

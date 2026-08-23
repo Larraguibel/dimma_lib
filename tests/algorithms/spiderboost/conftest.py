@@ -1,8 +1,7 @@
 """A small learnable regression problem, shared by the SpiderBoost tests.
 
-The same problem the DP-SGD suite uses, kept local to each algorithm's
-tests rather than shared: a fixture the two suites had in common would
-be one more thing a change to either has to keep true of both.
+The DP-SGD suite's problem, kept local to each algorithm's tests rather
+than shared.
 """
 
 from __future__ import annotations

@@ -58,7 +58,8 @@ def test_average_batch_size_may_be_traced(per_sample_tree):
 
 
 def test_masking_commutes_with_clipping(per_sample_tree):
-    """The docstring claims this; the kernels rely on it to reorder."""
+    """`dimma.core.aggregation`'s module docstring claims this; the
+    kernels rely on it to reorder."""
     mask = jnp.array([1.0, 0.0, 1.0, 0.0])
     clip_then_mask = aggregation.sum_over_batch(
         clipping.per_sample_clip(per_sample_tree, 1.0), mask=mask

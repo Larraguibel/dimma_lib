@@ -1,8 +1,7 @@
 """Lipschitz and smoothness constants for logistic regression.
 
-The expected numbers here are worked by hand from ADR-0012's closed
-forms rather than recomputed the way the code computes them, so a test
-can disagree with the implementation.
+Expected numbers worked by hand from ADR-0012's closed forms rather
+than recomputed the way the code computes them.
 """
 
 from __future__ import annotations

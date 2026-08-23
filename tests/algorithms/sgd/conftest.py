@@ -1,11 +1,8 @@
 """A small learnable regression problem, shared by the SGD tests.
 
-The same problem the DP-SGD suite uses, and deliberately the same
-numbers: the baseline's whole claim is that it differs from its private
-counterpart in the privacy and nothing else, so a test comparing the two
-arms needs one problem underneath both. Kept local rather than shared,
-following the SpiderBoost suite - a fixture the suites had in common
-would be one more thing a change to any of them has to keep true of all.
+Deliberately the DP-SGD suite's numbers, kept local rather than shared:
+the baseline's claim is that it differs from its private counterpart in
+the privacy alone, so both arms need one problem underneath them.
 """
 
 from __future__ import annotations

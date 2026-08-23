@@ -88,7 +88,8 @@ class TestExpectedCalibrationError:
         )
 
     def test_more_bins_never_scores_a_calibrated_model_better(self, calibrated):
-        """The documented bias: noise per bin can only add to the gap."""
+        """The documented bias: at 500 bins the per-bin noise strictly
+        adds to the gap, so the fine estimate is the worse one."""
         probs, labels = calibrated
         coarse = expected_calibration_error(probs, labels, n_bins=5)
         fine = expected_calibration_error(probs, labels, n_bins=500)

@@ -1,21 +1,8 @@
 """The chain ADR-0012 built, end to end, on the model dimma ships.
 
-Every link is covered somewhere already: the cap in `tests/datasets`, the
-constants in `tests/accounting`, the loops in `tests/algorithms`, the
-model in `tests/models`. What nothing else does is put them in a line —
-cap the features at ``R``, derive ``L0``, ``L1`` and the step size from
-``R`` alone, and run both algorithms on that model with them.
-
-The claim worth testing here is the one ADR-0009 declines to enforce and
-ADR-0012 makes true by construction: that the constants an accountant
-was handed really do bound the gradients the loop went on to produce. If
-they do not, every epsilon reported for Private SpiderBoost is false,
-silently, and no other test in this suite would notice.
-
-Not under either algorithm's directory because it belongs to neither.
-The two suites keep separate fixtures on purpose — a shared one is
-another thing a change to either has to keep true of both — and this
-file needs them to see the same data, which is the point of it.
+Every link is covered elsewhere; what is pinned here is the claim
+ADR-0009 declines to enforce — that the constants the accountant was
+handed really do bound the gradients the loop went on to produce.
 """
 
 from __future__ import annotations

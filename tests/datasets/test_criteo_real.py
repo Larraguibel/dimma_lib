@@ -1,21 +1,7 @@
-"""The claims that only the real 1M sample can settle.
+"""The claims only the real 1M sample can settle, skipped unless cached.
 
-Skipped unless the file is already cached, so a fresh checkout does not
-pull 45 MB to run the suite. Everything about the *logic* is covered
-against the synthetic fixture in ``test_criteo.py``; what is here is what
-depends on the actual data — its width, its category cardinalities, and
-whether float32 is wide enough for the IDs it happens to contain.
-
-To populate the cache::
-
-    python -c "from dimma.datasets.criteo import load_criteo; load_criteo()"
-
-— and what standardizing does to the row norms, which is a fact about
-the real distribution.
-
-Each mode is loaded once for the module. Preprocessing a million rows is
-seconds of work, and repeating it per test would make the suite slower
-than the thing it is testing.
+Populate the cache with ``python -c "from dimma.datasets.criteo import
+load_criteo; load_criteo()"``.
 """
 
 from __future__ import annotations

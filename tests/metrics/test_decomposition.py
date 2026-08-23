@@ -1,9 +1,8 @@
 """The identity, and the reading it is there to support.
 
-Two kinds of claim. That the four terms reconstruct the score is
-arithmetic and is held to floating point. That each term moves when and
-only when the thing it names moves is the reason to compute them at all,
-and is what the rest of this file pins.
+The reconstruction is arithmetic; that each term moves when and only
+when the thing it names moves is the reason to compute them at all, and
+is what the rest of this file pins.
 """
 
 from __future__ import annotations
@@ -11,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from dimma.metrics._binning import bin_predictions
 from dimma.metrics.decomposition import (
     brier_decomposition,
     log_loss_decomposition,
@@ -28,12 +28,19 @@ DECOMPOSITIONS = [
 def test_the_terms_reconstruct_the_score(decompose, score, n_bins, calibrated):
     """``calibration - resolution + uncertainty + residual`` is the score.
 
-    Exact, at every bin count, for both scores. A decomposition that
-    only approximately adds up would let a term absorb an error and
-    still look like a term.
+    ``residual`` is the gap by definition, so the sum alone cannot fail.
+    The three substantive terms are held to the score of the bin-constant
+    model, which is what Murphy's identity says they reconstruct.
     """
     probs, labels = calibrated
     parts = decompose(probs, labels, n_bins=n_bins)
+    bins = bin_predictions(probs, labels, n_bins=n_bins)
+    binned = score(bins.mean_predicted[bins.index], labels)
+
+    assert parts.calibration - parts.resolution + parts.uncertainty == \
+        pytest.approx(binned, abs=1e-12)
+    assert parts.residual == pytest.approx(score(probs, labels) - binned,
+                                           abs=1e-12)
     assert parts.total == pytest.approx(score(probs, labels), abs=1e-12)
 
 
@@ -87,11 +94,11 @@ def test_inflating_probabilities_costs_calibration_and_not_resolution(
 ):
     """The reading the module exists for, as an assertion.
 
-    A strictly increasing transform leaves the equal-mass bins holding
-    exactly the same records, so every observed rate is unchanged and
-    the resolution term cannot move. Only the stated probabilities
-    moved, and only the calibration term reports it. A run that
-    degrades this way has kept its signal and is quotable as such.
+    Inflating leaves the equal-mass bins holding exactly the same
+    records — it is increasing below the clip, and the 0.7% it ties at
+    1.0 all sit in the top bin already — so every observed rate is
+    unchanged and the resolution term cannot move. Only the stated
+    probabilities moved, and only the calibration term reports it.
     """
     probs, labels = calibrated
     before = decompose(probs, labels, n_bins=10)

@@ -1,21 +1,15 @@
 """The public surface of `metrics`, held to the same rule as the rest.
 
-ADR-0004: a caller writes `from dimma.metrics.scoring import log_loss`,
-so the import line says which question the number answers. Nothing
-enforces that at runtime, so it is pinned here.
-
-The second half pins an absence, in the narrowed shape ADR-0016 gives
-it. `roc_auc` and `accuracy` are barred from every module, permanently.
-Everything else that needs an operating point is barred from every
-module that does not own one — `operating_point` owns the cut, and
-`ranking` takes every cut and so fixes none. A later convenience import
-fails a test rather than quietly putting a threshold back into a
-comparison that was built not to need one.
+ADR-0004 for what the import line must say, ADR-0016 for the absences:
+`roc_auc` and `accuracy` are barred everywhere, and anything else
+needing an operating point from every module that owns none.
 """
 
 from __future__ import annotations
 
+import ast
 import importlib
+import pathlib
 
 import pytest
 
@@ -86,17 +80,18 @@ def test_only_ranking_offers_the_curve_over_every_cut(name):
 def test_no_metric_module_imports_jax():
     """These run on arrays already off the device, and say so.
 
-    Importing JAX here would make a reporting path depend on the
-    accelerator stack, and would invite someone to make a metric
-    differentiable — which is how a threshold-free score turns into a
-    training objective nobody chose.
+    Read off the import statements rather than the module namespace, so
+    that ``from jax import ...``, which binds no name a scan would
+    recognise, is caught too.
     """
-    import sys
-
     for name in MODULES:
         module = importlib.import_module(f"dimma.metrics.{name}")
-        assert "jax" not in {
-            n.split(".")[0] for n in getattr(module, "__dict__", {})
-            if isinstance(sys.modules.get(n), type(sys))
-        }
-        assert not hasattr(module, "jnp")
+        source = pathlib.Path(module.__file__).read_text(encoding="utf-8")
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                roots = {alias.name.split(".")[0] for alias in node.names}
+            elif isinstance(node, ast.ImportFrom):
+                roots = {(node.module or "").split(".")[0]}
+            else:
+                continue
+            assert "jax" not in roots, f"dimma.metrics.{name} imports jax"

@@ -1,10 +1,8 @@
 """The public surface of `core`, as decided rather than as it happens to be.
 
-`core` re-exports no functions: a caller imports from the stage module,
-so the import line says which stage the call belongs to. Nothing enforces
-that at runtime, so it is pinned here — a convenience re-export added
-later fails these tests rather than quietly widening a surface the README
-commits to keeping stable.
+`core` re-exports no functions, so the import line says which stage a
+call belongs to (ADR-0004); nothing enforces that at runtime, so a later
+convenience re-export fails here rather than widening the surface.
 """
 
 from __future__ import annotations

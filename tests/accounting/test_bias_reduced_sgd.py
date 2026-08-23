@@ -1,14 +1,8 @@
 """The bias-reduced filter, against Lemma 5.3 and Theorem A.4.
 
-Nothing here runs a loop. A filter's whole job is to answer one
-question — may this step run? — from a cost that was computed before
-the step existed, so it is testable on cost sequences built by hand,
-and that is how the paper's stopping rule is pinned: on constructed
-schedules, where what the filter should say is known independently of
-what any training run did.
-
-`tests/algorithms/bias_reduced_sgd/test_train.py` pins the other half,
-that the loop asks the question in the right place.
+Held on cost sequences built by hand, where the right answer is known
+independently of any run; the loop suite pins that the loop asks in the
+right place.
 """
 
 from __future__ import annotations
@@ -187,18 +181,9 @@ def test_the_filter_admits_more_steps_on_a_larger_dataset():
 
 
 def test_a_bigger_budget_buys_quieter_steps_and_not_more_of_them():
-    """A property of this filter that is easy to expect the wrong way
-    round, so it is pinned rather than left to be discovered.
-
-    Both arms of the price are *proportional* to the budget —
-    ``eps_t = c eps``, ``delta_t = c delta`` — so doubling the budget
-    doubles the threshold and the cost together and the delta arm stops
-    the run after the same number of steps. Under the epsilon arm a
-    larger budget is very slightly *worse*, since Theorem A.4's linear
-    term ``0.5 sum eps_s ** 2`` grows quadratically in the budget while
-    the threshold grows linearly. What a bigger budget buys is a
-    smaller `inner_noise_multiplier`: quieter steps, not more of them.
-    """
+    """Both arms of the price are proportional to the budget, so a
+    bigger one buys a smaller `inner_noise_multiplier` and never more
+    steps — easy to expect the wrong way round, so pinned."""
     counts = [admitted_steps([2] * 100_000, n=4096, target_epsilon=eps)
               for eps in [0.1, 0.25, 0.5, 1.0]]
     assert counts == sorted(counts, reverse=True)
@@ -336,9 +321,11 @@ def test_there_is_no_method_argument():
 
 @pytest.mark.parametrize("target_epsilon", [0.0, -1.0, 1.5, 8.0])
 def test_a_budget_above_one_is_refused(target_epsilon):
-    """Lemma 5.3's amplification is stated for ``eps <= 1``; above it
-    every price here is an under-estimate, so the module refuses rather
-    than reporting a number that is not a bound."""
+    """The budget must land in ``(0, 1]``. Lemma 5.3's amplification is
+    stated for ``eps <= 1``, so above it every price here is an
+    under-estimate; at or below zero there is nothing to spend. Either
+    way the module refuses rather than reporting a number that is not a
+    bound."""
     for call in (
         lambda: accounting.inner_noise_multiplier(
             target_epsilon=target_epsilon, target_delta=DELTA),

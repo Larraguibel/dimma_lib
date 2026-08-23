@@ -1,21 +1,8 @@
 """A small *sparse* regression problem, shared by these tests.
 
-The DP-SGD and SpiderBoost suites use a dense fixture; this one
-deliberately does not. Assumption (A.7) — at most ``S`` nonzero
-coordinates in every per-sample gradient — is what the whole method
-exists for, and on dense rows both the projection's denoising and the
-bias it costs are about nothing, so every bound this suite pins would
-hold vacuously.
-
-Each row of ``x`` has exactly ``S`` nonzeros out of ``D``, and the
-per-sample gradient of the squared error is ``(<w, x> - y) * x``, whose
-support is the row's. It is therefore exactly ``S``-sparse at every
-parameter value, and ``clip_norm * sqrt(S)`` is a radius at which the
-estimator's bound says something.
-
-Kept local to this suite rather than shared with the other two: a
-fixture three suites had in common would be one more thing a change to
-any of them has to keep true of all.
+Each row of ``x`` holds exactly ``S`` of ``D`` nonzeros, so every
+per-sample gradient is ``S``-sparse (A.7) and the bounds this suite
+pins do not hold vacuously the way they would on dense rows.
 """
 
 from __future__ import annotations

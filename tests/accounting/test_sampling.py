@@ -1,8 +1,6 @@
 """Poisson-subsampled Gaussian accounting.
 
-The wrapped library is Google's and is not re-tested here. These pin the
-wrapper: the parameterisation, the monotonicities a privacy bound must
-have, and the claims the two function names make.
+Google's library underneath is not re-tested; these pin the wrapper.
 """
 
 from __future__ import annotations

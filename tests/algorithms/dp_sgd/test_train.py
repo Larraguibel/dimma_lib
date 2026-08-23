@@ -11,6 +11,7 @@ import pytest
 from dimma.accounting.sampling import poisson_gaussian_epsilon
 from dimma.algorithms.dp_sgd import train as dp_train
 from dimma.core import updates
+from dimma.core.sampling import poisson
 
 from .conftest import squared_error
 
@@ -20,6 +21,20 @@ def full_loss(params, x, y):
     return float(jnp.mean(
         jax.vmap(squared_error, in_axes=(None, 0, 0))(params, x, y)
     ))
+
+
+@pytest.fixture
+def drawn_rates(monkeypatch):
+    """Every sampling rate the loop drew at, in the order it drew them."""
+    rates: list[float] = []
+    original = poisson.subsample
+
+    def recording(rng, n, p, b_max):
+        rates.append(p)
+        return original(rng, n, p, b_max)
+
+    monkeypatch.setattr(poisson, "subsample", recording)
+    return rates
 
 
 def test_training_reduces_the_loss(problem, zero_params, key, rng):
@@ -133,15 +148,12 @@ def test_a_cap_of_n_never_raises(problem, zero_params, key, rng):
 
 def test_the_loops_parameters_are_the_accountants_parameters(problem,
                                                              zero_params, key,
-                                                             rng):
-    """The run and its epsilon must describe the same mechanism.
+                                                             rng, drawn_rates):
+    """The run draws at the ``q`` and the count the accountant is given.
 
-    `train` takes ``expected_batch_size``, ``steps`` and
-    ``noise_multiplier``; the accountant takes
-    ``q = expected_batch_size / n``, ``num_compositions = steps`` and the
-    same ``noise_multiplier``, unconverted. Nothing else is
-    needed, which is what makes DP-SGD the case the standard accountant
-    covers exactly.
+    One branch and one rate, so the accountant's ``q`` and its
+    ``num_compositions`` are `train`'s own arguments unconverted; the
+    loop's consumption of the sampling stream is what says so.
     """
     x, y, _ = problem
     n, expected_batch_size, steps, sigma = x.shape[0], 100, 50, 1.1
@@ -151,6 +163,8 @@ def test_the_loops_parameters_are_the_accountants_parameters(problem,
         steps=steps, expected_batch_size=expected_batch_size, clip_norm=1.0,
         noise_multiplier=sigma,
     )
+    assert drawn_rates == [expected_batch_size / n] * steps
+
     epsilon = poisson_gaussian_epsilon(
         sampling_probability=expected_batch_size / n,
         noise_multiplier=sigma,

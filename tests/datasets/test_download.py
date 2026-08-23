@@ -1,9 +1,8 @@
 """The digest is what makes a dataset a fixed input.
 
-These tests pin the three outcomes that matter: a matching cached file is
-never re-fetched, a corrupted one is replaced rather than trusted, and a
-mismatched download never appears at the destination path where a later
-run would mistake it for verified bytes.
+The three outcomes: a matching cached file is never re-fetched, a
+corrupted one is replaced, and a mismatched download never lands at the
+destination path.
 """
 
 from __future__ import annotations

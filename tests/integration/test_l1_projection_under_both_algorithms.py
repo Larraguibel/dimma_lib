@@ -1,14 +1,8 @@
 """One transform, both private loops, neither aware of it.
 
-`tests/transforms` covers the wrapper against the seam's contract; what
-nothing else does is pass the same wrapped optimizer through both
-training loops and check the constraint held over a whole run. That is
-the transforms front's claim — a transform composes across algorithms —
-exercised rather than stated.
-
-The unconstrained control matters as much as the constrained run: a
-radius the trajectory never reaches would let every assertion below
-pass with the projection never once binding.
+One wrapped optimizer through both loops, with the constraint checked
+over whole runs; the unconstrained control is what keeps a radius the
+trajectory never reaches from passing everything vacuously.
 """
 
 from __future__ import annotations

@@ -41,10 +41,11 @@ def test_normalized_entropy_is_below_one_for_a_model_that_learned(calibrated):
 def test_the_scores_are_proper(score, calibrated):
     """Reporting the true probability beats reporting anything else.
 
-    This is the whole reason to select on one of these. Both a shift and
-    a sharpening move the predictions away from the truth without
-    touching their order, so a ranking metric would call every variant
-    here identical; a proper score has to prefer the truth.
+    This is the whole reason to select on one of these. A shift and a
+    sharpening move the predictions away from the truth while reordering
+    nothing — the clips only tie records at a bound — so a ranking
+    metric would call these variants all but identical; a proper score
+    has to prefer the truth.
     """
     probs, labels = calibrated
     truth = score(probs, labels)
@@ -58,7 +59,12 @@ def test_the_scores_are_proper(score, calibrated):
 
 
 def test_a_monotone_transform_that_ranking_ignores_is_penalized(calibrated):
-    """The failure a private run reaches first, and AUC's blind spot."""
+    """The failure a private run reaches first, and AUC's blind spot.
+
+    Doubling is increasing below 0.5 and ties the 6% above it at 1.0, so
+    the order check spot-checks the hundred smallest, where no tie
+    reaches.
+    """
     probs, labels = calibrated
     scaled = np.clip(probs * 2.0, 0.0, 1.0)
     order = np.argsort(probs)
@@ -69,9 +75,10 @@ def test_a_monotone_transform_that_ranking_ignores_is_penalized(calibrated):
 def test_certainty_that_was_wrong_is_clipped_rather_than_infinite():
     """A floor on how bad one record may look, not a fact about the model.
 
-    The clip lands at ``1 - 1e-15``, whose float64 neighbour is about
-    1.11e-15 away rather than 1e-15, so the bound is written as the
-    expression the code evaluates rather than as the round number.
+    ``1 - 1e-15`` is not itself a float64: floats there are 1.11e-16
+    apart, so the nearest one sits 9.99e-16 below 1.0 and the loss comes
+    out at 34.5396 rather than ``-log(1e-15)``'s 34.5388. The bound is
+    written as the expression the code evaluates for that reason.
     """
     assert np.isfinite(log_loss([1.0, 0.0], [0.0, 1.0]))
     assert log_loss([1.0], [0.0]) == pytest.approx(

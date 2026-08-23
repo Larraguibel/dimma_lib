@@ -1,10 +1,8 @@
 """Private SpiderBoost accounting.
 
-The composition and the accountant underneath it are tested in
-`test_sampling`; these pin what this module adds. Three things: that
-the two schedules it derives are Algorithm 2's, that calibrating and
-reporting are inverse, and that the alignment the fixed multiplier
-rests on is enforced rather than assumed.
+What this module adds over `test_sampling`: Algorithm 2's two
+schedules, calibrating and reporting as inverses, and the alignment the
+fixed multiplier rests on.
 """
 
 from __future__ import annotations
@@ -51,7 +49,8 @@ def test_the_branches_split_every_step_between_them():
 
 
 def test_step_zero_is_an_anchor_step():
-    """``t % anchor_interval`` makes it one, so a 1-step run is 1-0."""
+    """``t % anchor_interval`` makes it one, so the shortest run a
+    two-step minimum allows is 1-1 at any interval longer than it."""
     assert spiderboost.release_counts(2, 1000) == (1, 1)
 
 
@@ -297,9 +296,10 @@ def test_reporting_rejects_an_unknown_method():
 
 def test_the_constants_rescale_the_noise_and_not_the_budget():
     """The multiplier depends only on the rates, the counts and the
-    budget - never on L0 or L1. So assuming a function class twice as
-    steep buys exactly twice the noise for the same epsilon, which is
-    what makes the constants premises rather than tuning knobs."""
+    budget - never on L0 or L1. So doubling L0 doubles exactly the two
+    scales built from it, the anchor scale and the variation cap, and
+    leaves the variation rate alone because that one tracks L1. The
+    constants are premises rather than tuning knobs."""
     base, steeper = scales(), scales(lipschitz_constant=2.0)
     assert steeper.anchor_noise_scale == \
         pytest.approx(2 * base.anchor_noise_scale)

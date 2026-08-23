@@ -1,9 +1,8 @@
 """The public surface of `models`, as decided rather than as inherited.
 
 The package this was ported from re-exported its whole surface from
-`__init__`, and aliased the colliding names between its two models. That
-is the shape ADR-0004 rules out, and copying it would have been the path
-of least resistance, so it is pinned here instead.
+`__init__` and aliased the colliding names; ADR-0004 rules that out, so
+it is pinned here rather than left to the path of least resistance.
 """
 
 from __future__ import annotations

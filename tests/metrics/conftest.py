@@ -1,13 +1,8 @@
 """Synthetic predictions whose calibration is known by construction.
 
-Every calibration claim needs a case where the right answer is not in
-doubt. Drawing ``p`` first and then ``y ~ Bernoulli(p)`` gives exactly
-that: ``p`` *is* the true conditional probability, so a model reporting
-it is perfectly calibrated, and any gap a metric finds is that metric's
-own sampling noise rather than a fault in the predictions.
-
-Sizes are large enough that the noise sits well below what the
-assertions test for, and every draw is seeded.
+Drawing ``p`` first and then ``y ~ Bernoulli(p)`` makes ``p`` the true
+conditional probability, so any gap a metric finds is its own sampling
+noise, and at these sizes that sits well below what is asserted.
 """
 
 from __future__ import annotations
@@ -20,6 +15,7 @@ N = 200_000
 
 @pytest.fixture
 def rng():
+    """Shadows the suite-wide ``rng`` at seed 20260815, not seed 0."""
     return np.random.default_rng(20260815)
 
 
