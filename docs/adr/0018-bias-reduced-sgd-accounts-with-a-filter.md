@@ -4,10 +4,16 @@
 closed form and nothing else. A step drawn at scale `N` costs
 `(3·2^(N+1)+1)·(ε,δ)/(16n)` — three inner Gaussian releases at `(ε/32, δ/16)`
 each, basic-composed and amplified once jointly at `2^(N+1)/n`, plus `G₀`
-amplified at `1/n`, which is Lemma 5.3 as printed. The filter admits a step
-while `sqrt(2·ln(4/δ)·Σεₛ²) + ½·Σεₛ² ≤ ε/2` and `Σδₛ ≤ δ/4`, i.e. Theorem A.4
-at `δ′ = δ″ = δ/4`, the paper's own split. Every number is a function of the
-public coin and the budget; no data enters a cost.
+amplified at `1/n`, which is Lemma 5.3 as printed. Its amplification is
+`(ε,δ) → (2qε, qδ)` for `ε ≤ 1` and not `(qε, qδ)`: the two on the ε arm is the
+slack in `log(1 + q(e^ε − 1)) ≤ 2qε`. So
+`ε_t = 2·(2^(N+1)/n)·(3ε/32) + 2·(1/n)·(ε/32)`, and dropping that two would
+halve the coefficient to `/(32n)`. The δ arm carries no such factor —
+`δ_t = (2^(N+1)/n)·(3δ/16) + (1/n)·(δ/16)` — and reaches the same `/(16n)` by
+the other route, which is what makes the missing two easy to miss. The filter
+admits a step while `sqrt(2·ln(4/δ)·Σεₛ²) + ½·Σεₛ² ≤ ε/2` and `Σδₛ ≤ δ/4`, i.e.
+Theorem A.4 at `δ′ = δ″ = δ/4`, the paper's own split. Every number is a
+function of the public coin and the budget; no data enters a cost.
 
 No existing accountant applies, and the obstacle is structural rather than a
 matter of tightness. `accounting/sampling.py` composes a schedule of releases

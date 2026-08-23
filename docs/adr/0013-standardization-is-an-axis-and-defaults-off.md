@@ -59,8 +59,10 @@ around it.
 `"feature_stds"` only when it is true — they track the step that fitted them
 rather than `preprocess`, which fits medians and frequencies and neither a mean
 nor a deviation. The prose in `metadata["preprocessing"]`, and the notice
-printed once per process, name the choice in both directions: eight modes, eight
-descriptions, none of them able to stand in for another.
+printed once per configuration — the `emit_once` key is `features`,
+`preprocess`, `standardize` and `feature_norm_bound`, so a process that loads
+two chains sees two notices — name the choice in both directions: eight modes,
+eight descriptions, none of them able to stand in for another.
 
 Flipping the default changes what existing callers get from the same call, and
 it changes results rather than correcting an error. Earlier runs were not

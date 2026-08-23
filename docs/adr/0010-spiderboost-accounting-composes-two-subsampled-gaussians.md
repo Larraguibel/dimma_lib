@@ -11,10 +11,14 @@ The variation branch fits a fixed multiplier because the paper sets
 `min(L1‖w_t − w_{t−1}‖, 2·L0)` switches: scale and sensitivity saturate
 together, so their ratio is constant. Sensitivity is bounded conditional on the
 transcript — `w_t` and `w_{t−1}` are post-processing of prior releases, so
-under conditioning only the one added or removed example differs. Composition
-is adaptive, which is sound because each branch's privacy curve is fixed in
-advance and the branch sequence is `t % anchor_interval`, decided before the
-run.
+under conditioning only the one added or removed example differs. That
+conditioning is what makes the *magnitude* sound: the variation branch's noise
+is chosen adaptively, as a function of prior releases only. The two schedules
+themselves compose *non-adaptively* — the branch sequence is
+`t % anchor_interval`, fixed before the run, and each branch's privacy curve
+with it, which is the order independence
+`sampling.composed_poisson_gaussian_epsilon` states. Adaptive magnitude,
+non-adaptive schedule; only the second is what the accountant composes.
 
 That saturating bound is a reconstruction from the algorithm box, not a
 restatement of the proof. B.3's privacy argument cites only
