@@ -2,14 +2,11 @@
 
 Accounts `dimma.algorithms.bias_reduced_sgd`. This module travels with
 that algorithm and is not general-purpose, per the membership rule in
-`dimma.accounting`. What is bespoke here is not only the mapping but
-the *shape* of the accountant: the schedule of per-step costs is chosen
-by the run itself, from a coin drawn inside the loop, so there is no
-sequence of releases fixed in advance to compose over. Theorem A.4's
+`dimma.accounting`. What is bespoke is the *shape* of the accountant:
+the schedule of per-step costs is chosen inside the run, so nothing is
+fixed in advance to compose over, and Theorem A.4's
 ``(eps, delta)``-filter (Whitehouse, Ramdas, Rogers, Wu 2023, as the
-paper cites it) is the statement that covers an adaptively chosen
-schedule, and it is what this module implements. ADR-0018 records the
-decision.
+paper cites it) is what covers that. ADR-0018 records the decision.
 
 Assumed mechanism
 -----------------
@@ -57,22 +54,15 @@ where the number is made:
   ``eps <= 1``. Above it the per-step cost here is an *under*-estimate,
   so the loop refuses such a budget rather than reporting from it;
 - **the inner mechanism is Gaussian.** `check_claim` enforces exactly
-  this much, by type, and refuses anything else. The type it checks,
-  `GaussianMeanClaim`, is defined here rather than beside the estimator
-  that carries it, so that pricing a claim never requires importing the
-  algorithm that made it — ADR-0003's split, in imports.
+  this much, by type, and refuses anything else.
 
 No ``method`` argument
 ----------------------
-ADR-0011 makes ``"rdp"`` the default everywhere in `accounting`, and
-every function here departs from it: there is no ``method``, and no
-Rényi path. The reason is not preference. A filter is a bound on an
-*adaptively chosen* composition, and `dp_accounting` exposes nothing
-filter-shaped — its accountants compose a schedule fixed in advance,
-which is precisely what this loop does not have. The closed form below
-is therefore the whole accountant. A Rényi filter would be tighter and
-is ticketed (#35); swapping it changes what is claimed, so it is an
-ADR-level change and not an argument. ADR-0018 records the carve-out.
+No function here takes one, and there is no Rényi path:
+`dp_accounting` exposes nothing filter-shaped, so the closed form
+below is the whole accountant and an argument would advertise a choice
+that does not exist. A Rényi filter would be tighter and is ticketed
+(#35). ADR-0018 records the carve-out from ADR-0011.
 
 Reference: B. Ghazi, C. Guzman, P. Kamath, R. Kumar, P. Manurangsi,
 "Differentially Private Optimization with Sparse Gradients", NeurIPS
@@ -100,16 +90,14 @@ __all__ = [
 class Spent(NamedTuple):
     """The filter's state: everything Theorem A.4 needs, and nothing else.
 
-    Two running sums and a count. The theorem's bound reads
-    ``eps[0:t] = sqrt(2 ln(1/delta') sum eps_s ** 2)
-    + 0.5 sum eps_s ** 2``, so the per-step costs are needed only
-    through their sum of squares; the deltas add.
+    Two running sums and a count: `epsilon` needs the per-step costs
+    only through their sum of squares, and the deltas add.
 
     Computed from the public coin alone — no data enters a cost — so
     carrying one out of a training loop reports the coin and not the
-    training set. That is why `dimma.algorithms.bias_reduced_sgd.train`
-    may return it without breaking ADR-0006's rule against loops
-    reporting metrics.
+    training set, which is why
+    `dimma.algorithms.bias_reduced_sgd.train` may return it without
+    breaking ADR-0006's rule against loops reporting metrics.
     """
 
     steps: int
@@ -131,25 +119,17 @@ class GaussianMeanClaim(NamedTuple):
     """The privacy claim an inner mean release carries.
 
     A Gaussian mechanism over a batch mean of ``l_2`` sensitivity
-    ``2 * clip_norm / batch_size`` — Theorem 3.3's ``Delta_2 = 2L/n``,
-    under the add-or-remove-one adjacency dimma assumes — perturbed at
-    ``noise_multiplier`` times that sensitivity, and then
-    post-processed.
+    ``2 * clip_norm / batch_size`` — Theorem 3.3's ``Delta_2 = 2L/n``
+    — perturbed at ``noise_multiplier`` times it, then post-processed.
 
-    Its *type* is what the accountant checks. Lemma 5.3 composes four
-    Gaussian releases and nothing else, so an estimator whose release
-    is anything else must be refused rather than accounted by analogy:
+    Its *type* is what the accountant checks: Lemma 5.3 composes four
+    Gaussian releases and nothing else, so a different mechanism —
     Algorithm 2's second branch folds a random-matrix failure event
-    into ``delta``, which is a different mechanism however similar the
-    code that runs it.
-
-    Defined here, with `check_claim` and the closed form that prices
-    it, rather than beside the estimator that fills it in: the claim is
-    the accountant's vocabulary, per ADR-0003, and keeping it here is
-    what lets `dimma.accounting` price a run without importing any
-    algorithm code.
-    `dimma.algorithms.bias_reduced_sgd.estimators` re-exports it, so an
-    estimator naming its own claim need not reach across.
+    into ``delta`` — must be refused rather than accounted by analogy.
+    The type is defined here beside `check_claim` and the closed form
+    that prices it, per ADR-0003, so that `dimma.accounting` prices a
+    run without importing algorithm code;
+    `dimma.algorithms.bias_reduced_sgd.estimators` re-exports it.
 
     The batch size is deliberately absent. It changes within a step and
     is a property of the slot, not of the estimator; what is fixed for
@@ -169,10 +149,9 @@ class GaussianMeanClaim(NamedTuple):
 def check_claim(claim: Any) -> None:
     """Refuse an inner mean estimator this analysis does not cover.
 
-    The one thing the accountant checks about the code that ran. Lemma
-    5.3 composes four *Gaussian* mean releases and nothing else, so an
-    estimator whose release is a different mechanism has to be refused
-    rather than accounted by resemblance.
+    The one thing the accountant checks about the code that ran; the
+    error message below says what it rules out, and
+    `GaussianMeanClaim` why.
 
     Parameters
     ----------
@@ -207,13 +186,12 @@ def inner_noise_multiplier(*, target_epsilon: float,
 
         32 * sqrt(2 * ln(20 / delta)) / epsilon
 
-    The budget's whole journey inward, in one line. Algorithm 4 hands
-    Algorithm 3 ``(eps/8, delta/4)``; Algorithm 3 splits that four ways
-    to ``(eps/32, delta/16)`` a slot; Algorithm 1 answers a slot with
-    ``sigma ** 2 = 8 L ** 2 ln(1.25 / delta_in) / (k eps_in) ** 2`` over
-    a sensitivity of ``2 L / k``. Dividing the first by the second
-    cancels both ``L`` and ``k``, which is why one dimensionless number
-    serves all four slots of every step of a run::
+    The budget's whole journey inward. Algorithm 4 hands Algorithm 3
+    ``(eps/8, delta/4)``; Algorithm 3 splits that four ways to
+    ``(eps/32, delta/16)`` a slot; Algorithm 1 answers a slot with
+    ``sigma ** 2 = 8 L ** 2 ln(1.25 / delta_in) / (k eps_in) ** 2``
+    over a sensitivity of ``2 L / k``. The ratio cancels ``L`` and
+    ``k``, so one dimensionless number serves every slot of a run::
 
         sigma / (2 L / k) = sqrt(2 ln(1.25 / (delta / 16))) / (eps / 32)
 
@@ -249,17 +227,13 @@ def step_cost(*, scale: int, n: int, target_epsilon: float,
 
         (3 * 2 ** (scale + 1) + 1) * (epsilon, delta) / (16 * n)
 
-    Three inner releases over the batch and its halves, amplified
-    together at ``2 ** (scale + 1) / n``, plus one over a single record
-    amplified at ``1 / n``.
+    The module docstring's assumed mechanism, priced.
 
     Parameters
     ----------
     scale
-        ``N_t``, from `dimma.core.sampling.dyadic.draw_scale`. The
-        public coin, and the only thing the price depends on: this is
-        computable, and is meant to be computed, before the batch is
-        drawn.
+        ``N_t``, from `dimma.core.sampling.dyadic.draw_scale`: the
+        public coin, and the only thing the price depends on.
     n
         Training set size.
     target_epsilon, target_delta
@@ -340,7 +314,7 @@ def epsilon(spent: Spent, *, target_delta: float) -> float:
     target_delta
         The run's whole ``delta``, from which the theorem's ``delta'``
         is this module's quarter share. The same number the run was
-        given, not a delta chosen at reporting time: the schedule was
+        given, not one chosen at reporting time: the schedule was
         filtered against this one.
 
     Returns
@@ -379,13 +353,8 @@ def permits(spent: Spent, cost: tuple[float, float], *,
         eps[0:t + 1] <= target_epsilon / 2
         sum_{s <= t} delta_s <= target_delta / 4
 
-    Both arms, and either one stops the run. Algorithm 4's printed
-    ``while`` sums the costs of steps ``s <= t - 1``, so it takes one
-    step whose price was never checked and absorbs it in the ``eps/2``
-    threshold. Theorem A.4's own stopping time is
-    ``inf{t : eps < eps[0:t + 1]}`` — the check *including* step ``t``,
-    which is what this is. It stops at or before Algorithm 4's ``T``,
-    so Lemma 5.3 covers the transcript with slack left over.
+    Both arms, and either one stops the run; ADR-0018 records the
+    shift from Algorithm 4's printed ``while``.
 
     Parameters
     ----------
@@ -393,11 +362,9 @@ def permits(spent: Spent, cost: tuple[float, float], *,
         The filter's state before the step.
     cost
         The step's ``(epsilon, delta)``, from `step_cost` and so from
-        the coin. Consulting this function before the batch is drawn is
-        the point of the whole arrangement, and
-        `dimma.algorithms.bias_reduced_sgd.train` does exactly that.
+        the coin.
     target_epsilon, target_delta
-        The run's whole budget. The halves and quarters are the
+        The run's whole budget; the halves and quarters are the
         paper's, and are taken here so that no caller has to.
 
     Returns

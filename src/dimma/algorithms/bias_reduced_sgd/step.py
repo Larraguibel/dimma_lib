@@ -1,40 +1,28 @@
 """One bias-reduced iteration: Algorithm 3, and the update it feeds.
 
-Stage 1 is not here. The scale is drawn, the batch and its halves and
-the single record are drawn at that scale, and the rows are gathered,
-all on the host in `dimma.core.sampling.dyadic`; this module takes the
-gathered rows. From the per-sample gradients to the perturbation
-everything compiles.
+Stage 1 is not here: the scale, the batch and its halves and the
+single record are drawn on the host in `dimma.core.sampling.dyadic`
+and this module takes the gathered rows. From the per-sample gradients
+to the perturbation everything compiles.
 
 Two mechanisms, so four functions, per ADR-0006. `batch_release` and
 `single_release` return what their mechanism makes public, and so all
 an accountant accounts for; `debiased_gradient` and `step` apply what
 they returned, which is post-processing and free. The apply side is
-split by post-processing layer rather than by mechanism, because the
-two releases are combined into one estimate before anything is applied
-at all — there is no "apply the batch release" that could stand alone.
+split by post-processing layer rather than by mechanism: the two
+releases combine into one estimate before anything is applied, so
+there is no "apply the batch release" that could stand alone.
 
-The triplet is one release, not three. The whole batch and its two
-halves are three quantities out of a *single* draw of ``B``, so they
-are amplified once, jointly, at rate ``2 ** (N + 1) / n``, which is
-what Lemma 5.3 states. Returning them in one `BatchRelease` is how the
-code says so; three release functions would invite an accountant to
-compose three independent amplifications, which is not what ran.
+The triplet is one release, not three — one draw of ``B``, amplified
+once and jointly, which is why `batch_release` returns a single
+`BatchRelease`. ADR-0017 records why.
 
 A step is two compiled calls plus a host-side combine rather than one
-compiled call, which bends ADR-0006. The batch release has a different
-shape at every scale while the single release has one shape for the
-whole run, so binding them separately is what keeps the constant shape
-from being retraced once per scale; and the combine runs in host
-`numpy` float64, for the reason below.
+compiled call, which bends ADR-0006 for the reason ADR-0017 gives.
 
-Numerics. The releases are float32, as the device computed them. The
-combine is float64 on the host, because ``G+ - 0.5 * (G-_O + G-_E)``
-is a near-cancellation that ``1 / p_N`` then multiplies by about
-``2 ** (N + 1)``. Doing it in float64 stops the combine from adding
-rounding of its own; it cannot remove the rounding already inside each
-float32 release, which the package docstring states as a ceiling and a
-test pins as a scale law.
+Numerics. The releases are float32; the combine runs in host `numpy`
+float64, so the near-cancellation ``1 / p_N`` amplifies picks up no
+rounding of its own. The package docstring gives the ceiling it leaves.
 
 Binding. `grad_fn`, `estimator` and `optimizer` are *static*
 `jax.jit` arguments rather than traced ones — one is a function, one
@@ -83,10 +71,10 @@ __all__ = [
 class BatchRelease(NamedTuple):
     """Everything the jointly-subsampled mechanism makes public.
 
-    One object because it is one mechanism: the three inner calls run
-    on a single draw of ``B``, are amplified once at rate
-    ``2 ** (N + 1) / n``, and are basic-composed with each other
-    conditionally on that draw.
+    One object because it is one mechanism: three inner calls on a
+    single draw of ``B``, amplified once and jointly at rate
+    ``2 ** (N + 1) / n``. Three release functions would invite three
+    independent amplifications, which is not what ran.
 
     Leaves are float32, the dtype they were released in. Converting
     them is `debiased_gradient`'s job and nobody else's.
@@ -145,9 +133,8 @@ def batch_release(
     the gradient work.
 
     Each inner call gets its own perturbation, from
-    ``jax.random.split(key, 3)``. Three releases of one mechanism, not
-    one release read three times: Lemma 5.3 composes them at
-    ``(eps/32, delta/16)`` each before amplifying the composition.
+    ``jax.random.split(key, 3)``: three releases of one mechanism,
+    composed at ``(eps/32, delta/16)`` each before amplifying.
 
     Parameters
     ----------
@@ -155,10 +142,9 @@ def batch_release(
         From `dimma.core.gradients.per_sample_grads`. Built once, so
         `jax.jit` sees a stable compilation key.
     estimator
-        The inner mean estimator. Its ``claim.clip_norm`` is the norm
-        stage 4 enforces here, and it appears nowhere else in this
-        signature, so the bound and the noise calibrated against it
-        cannot disagree.
+        The inner mean estimator. Stage 4 clips here to its
+        ``claim.clip_norm``, which appears nowhere else in this
+        signature.
     x_batch, y_batch
         The gathered rows of ``B``, leading axis exactly
         ``batch_size``. Nothing is padded and there is no mask.
@@ -221,10 +207,9 @@ def single_release(
 ) -> Any:
     """Algorithm 3's ``G_0``: the private gradient at one record.
 
-    The second mechanism, and accounted separately. Its record is drawn
-    uniformly and independently of ``B``, so it is amplified at rate
-    ``1 / n`` rather than at the batch's rate, and Lemma 5.3 adds its
-    cost to the triplet's rather than folding it in.
+    The second mechanism, and accounted separately: its record is
+    drawn independently of ``B``, so it is amplified at rate ``1 / n``
+    rather than at the batch's.
 
     Parameters
     ----------
@@ -235,9 +220,9 @@ def single_release(
 
     Notes
     -----
-    A batch of one is not a special case. The sensitivity
-    ``2 * clip_norm / batch_size`` is simply largest here and the noise
-    scale follows it, with no branch anywhere in the estimator.
+    A batch of one is not a special case; the sensitivity
+    ``2 * clip_norm / batch_size`` is simply largest here — see
+    `estimators.projection_estimator`'s Notes.
     """
     clipped = clipping.per_sample_clip(
         grad_fn(params, x_single, y_single), estimator.claim.clip_norm
@@ -283,10 +268,8 @@ def debiased_gradient(
 
     Post-processing of four already-released quantities, so it costs
     nothing an accountant sees and is free to run wherever the
-    arithmetic is best — which is not the device. The bracket nearly
-    cancels and ``1 / p_N`` then multiplies it by about
-    ``2 ** (N + 1)``, so combining in float32 would amplify the
-    combine's own rounding along with the releases'.
+    arithmetic is best — which is not the device: the bracket nearly
+    cancels and ``1 / p_N`` then multiplies it by ``2 ** (N + 1)``.
 
     Parameters
     ----------
@@ -346,9 +329,8 @@ def step(
     """One full iteration: release twice, combine, descend.
 
     Algorithm 4's ``x^{t+1} = Pi_X(x^t - eta G(x^t))`` without the
-    ``Pi_X``: a caller-side projection composes at the optimizer seam
-    per ADR-0014, so it is `dimma.transforms.projection.l1_projected`
-    wrapped around ``optimizer``, not an argument here.
+    ``Pi_X``, which is wrapped around ``optimizer`` by the caller per
+    ADR-0014 rather than passed here.
 
     Not itself compiled. Both releases already are, each bound outside
     the loop; what remains is the host-side combine and the update,
@@ -368,17 +350,15 @@ def step(
     Returns
     -------
     tuple
-        ``(params, opt_state)``, and nothing else. The releases are the
-        step's whole public output and were made public already by the
-        mechanisms that produced them.
+        ``(params, opt_state)``, and nothing else: the releases were
+        made public already by the mechanisms that produced them.
 
     Notes
     -----
-    The float64 apply side survives a dtype-agnostic optimizer such as
-    `dimma.core.updates.sgd` at a constant learning rate. A schedule
-    returns a `jax.numpy` scalar and an optax transformation runs
-    `jax.numpy` operations, either of which pulls the update back down
-    to float32.
+    The float64 apply side survives only an optimizer whose arithmetic
+    is `numpy`'s — see
+    `dimma.algorithms.bias_reduced_sgd.train`'s ``optimizer``
+    parameter for the dtype caveat.
     """
     device_params = _as_device_float32(params)
     batch = releases.batch(

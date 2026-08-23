@@ -45,16 +45,11 @@ them.
 
 Three departures from the paper
 -------------------------------
-**The inner estimator is Algorithm 1, not Algorithm 2.** The pseudocode
-writes Gaussian ``l_1``-Recovery in all four slots. Section 5.1's prose
-calls the inner estimator "the projection mechanism", which is
-Algorithm 1's name, and Section 5 opens by integrating "the mean
-estimation algorithm*s*" of Section 3, plural. That the substitution
-carries is *our* derivation and not the paper's:
-`docs/research/algorithm-1-carries-algorithm-3.md` gives it, the
-privacy analysis carries over verbatim, the accuracy bounds lose only
-``ln(d/s)`` for ``ln d``, and the swapped second-moment bound is pinned
-by a test rather than cited. The seam is `estimators.MeanEstimator`, so
+**The inner estimator is Algorithm 1, not Algorithm 2.** The
+pseudocode writes Gaussian ``l_1``-Recovery in all four slots; that
+the substitution carries is *our* derivation and not the paper's —
+`docs/research/algorithm-1-carries-algorithm-3.md` gives it and
+ADR-0017 records it. The seam is `estimators.MeanEstimator`, so
 Algorithm 2 later drops in without reopening the step.
 
 **``Pi_X`` is absent from the loop.** ADR-0014 settled where a
@@ -64,33 +59,23 @@ projection argument on the loops. Wrap the optimizer in
 containment.
 
 **The filter check includes the current step's cost.** Algorithm 4's
-printed ``while`` sums the costs of steps ``s <= t - 1``, deliberately
-taking one step whose cost was never checked and absorbing it in the
-``eps/2`` threshold. Theorem A.4's own stopping time is
-``inf{t : eps < eps[0:t+1]}``, the check *including* step ``t``. dimma
-implements the theorem, so it stops at or before Algorithm 4's ``T``
-and is covered by Lemma 5.3 with slack left over.
+printed ``while`` prices only steps ``s <= t - 1``; Theorem A.4's own
+stopping time includes step ``t``, so dimma stops at or before
+Algorithm 4's ``T``. ADR-0018 records the shift.
 
 What float32 costs, and where it ends
 -------------------------------------
-Releases are float32, as the device computes them; the debias combine
-and the parameter update are float64 on the host, because the bracket
-``G+ - (G-_O + G-_E)/2`` nearly cancels and ``1 / p_N`` then multiplies
-it by about ``2 ** (N + 1)``. float64 stops the combine adding rounding
-of its own. It cannot remove the rounding each release already carries
-from its own sum, perturbation and projection, of order
-``eps32 * clip_norm``, and that rounding is amplified by the same
-``2 ** (N + 1)``::
+Releases are float32; the debias combine and the parameter update are
+float64 on the host, because ``G+ - (G-_O + G-_E)/2`` nearly cancels
+and ``1 / p_N`` then multiplies it — and the rounding each release
+already carries — by about ``2 ** (N + 1)``::
 
     relative error of G  ~  2 ** (N + 1) * eps32 / (4 * noise_multiplier)
 
-So the estimate degrades at the top of the ladder, reaching order one
-around ``N = log2(4 * noise_multiplier / eps32) - 1`` — near ``N = 26``
-at a multiplier of 3, and never in sight if the releases were float64.
-Nothing raises on it. It is a documented and tested ceiling: a
-``max_scale`` above it puts the largest and rarest scale below float32
-resolution, and since ``max_scale`` is a mechanism parameter, lowering
-it is an analysable change rather than a truncation.
+That reaches order one near ``N = 26`` at a multiplier of 3, and
+nothing raises on it: it is a tested ceiling on how high a
+``max_scale`` is worth setting, and lowering ``max_scale`` is a
+mechanism change rather than a truncation. ADR-0017 records both.
 
 Preconditions this package cannot check
 ---------------------------------------
@@ -105,10 +90,9 @@ number rather than a crash:
   and every bound quoted here holds vacuously. Nothing in the code
   measures ``s``, and ADR-0015 records the same caveat for the shipped
   transform;
-- **the radius is the caller's number.** The library never invents a
-  constraint set. Pass a ``radius`` that actually contains the mean
-  gradients, or the estimate is biased toward the origin by an amount
-  no bound covers;
+- **the radius is the caller's number.** Pass a ``radius`` that
+  actually contains the mean gradients, or the estimate is biased
+  toward the origin by an amount no bound covers;
 - **the budget is small.** Lemma 5.3's amplification is stated for
   ``eps <= 1``; a larger budget makes the per-step cost the accountant
   charges an underestimate rather than an overestimate;
@@ -119,14 +103,11 @@ number rather than a crash:
 Our words, not the paper's
 --------------------------
 *Scale* for the paper's ``N`` and *whole* / *odd* / *even* for ``B``,
-``O``, ``E``, are borrowed rather than coined. All four are public
-names of `dimma.core.sampling.dyadic.DyadicDraw` — ``scale`` and
-``whole`` its fields, ``odd`` and ``even`` its properties, with
-``scale`` also what `dyadic.draw_scale` returns — and CONTEXT.md's
+``O``, ``E``, are borrowed rather than coined: all four are public
+names of `dimma.core.sampling.dyadic.DyadicDraw`, and CONTEXT.md's
 rule is that a word already carried by a public API means what the API
-means. So this package speaks the sampler's words rather than second
-ones of its own, and a draw and the release taken from it are named
-the same thing on both sides of the call.
+means. So a draw and the release taken from it are named the same
+thing on both sides of the call.
 
 *Filter*, for Theorem A.4's stopping rule, and *debias*, for the
 ``1 / p_N`` combine, are this package's own. Each has one consumer, so
