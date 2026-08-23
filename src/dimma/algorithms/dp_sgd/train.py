@@ -10,10 +10,7 @@ drives sampling and the `jax` key drives the Gaussian noise; they are
 different mechanisms with different accounting roles, and one generator
 each keeps a run reproducible from its two seeds.
 
-The loop returns parameters and reports no metrics. Evaluating a model
-on the training data is another access to it and costs privacy budget
-that Algorithm 1 does not account for, so that call belongs to the
-caller, where it is visible, and not to a callback hidden in here.
+The loop returns parameters and reports no metrics; see ADR-0006.
 """
 
 from __future__ import annotations
@@ -52,10 +49,17 @@ def train(
     per_sample_loss_fn
         ``(params, x_single, y_single) -> scalar``. Vectorized here
         once, outside the loop, so `jax.jit` traces a single time.
+    params
+        ``theta_0``: the initial parameters, a pytree of float arrays.
+        Not mutated.
     optimizer
         Algorithm 1 is ``updates.sgd(eta)``, or ``updates.sgd(schedule)``
         for the ``eta_t`` subscript. Anything else departs from the
         paper and is the caller's to report.
+    x, y
+        The training set, leading axis ``n`` on both. ``n`` is the
+        denominator of the sampling rate every accounting claim is
+        stated over.
     key, rng
         The noise and sampling streams. Pass one ``rng`` for the whole
         run: independent draws are what the sampling assumption means.
@@ -76,12 +80,19 @@ def train(
 
     Returns
     -------
-    params : Any
-        The trained parameters, Algorithm 1's ``theta_T``.
+    params : pytree
+        The trained parameters, Algorithm 1's ``theta_T``, in the
+        initial parameters' structure and dtypes.
 
-    No optimizer state is returned. `train` accepts none, so it cannot
-    consume what it would hand back, and a caller who resumed from it
-    would replay this run's noise stream from the start.
+    Raises
+    ------
+    ValueError
+        If ``expected_batch_size`` is outside ``(0, len(x)]``, before
+        the first step.
+    RuntimeError
+        Propagated from :func:`poisson.subsample` if a draw exceeds
+        ``b_max``. Raise ``b_max`` instead of catching it; ADR-0007
+        records why.
 
     Notes
     -----
@@ -89,13 +100,10 @@ def train(
     ``noise_multiplier``, ``steps`` and a target ``delta``, and this
     loop is not in a position to claim it; pass those to an accountant.
 
-    Raises
-    ------
-    RuntimeError
-        Propagated from :func:`poisson.subsample` if a draw exceeds
-        ``b_max``. Catching it would mean truncating or redrawing, and
-        both change the mechanism the accounting assumes. Raise ``b_max``
-        instead.
+    No optimizer state is returned. `train` accepts none, so it cannot
+    consume what it would hand back, and a caller who resumed from it
+    would replay this run's noise stream from the start. The other
+    training loops follow this module on that point.
     """
     n = x.shape[0]
     if not 0 < expected_batch_size <= n:

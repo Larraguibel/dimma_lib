@@ -11,12 +11,12 @@ import jax.numpy as jnp
 
 
 def add(a, b):
-    """Element-wise sum of two pytrees with identical structure."""
+    """Return the element-wise sum of two identically structured pytrees."""
     return jax.tree.map(lambda x, y: x + y, a, b)
 
 
 def sub(a, b):
-    """Element-wise difference of two pytrees with identical structure."""
+    """Return the element-wise difference of two identically structured pytrees."""
     return jax.tree.map(lambda x, y: x - y, a, b)
 
 
@@ -26,6 +26,6 @@ def scale(pytree, factor: float | jax.Array):
 
 
 def global_norm(pytree) -> jax.Array:
-    """Global ``l_2`` norm across all leaves and dimensions, as a scalar."""
+    """Return the global ``l_2`` norm across all leaves and dimensions."""
     leaves = jax.tree_util.tree_leaves(pytree)
     return jnp.sqrt(sum(jnp.sum(leaf ** 2) for leaf in leaves))

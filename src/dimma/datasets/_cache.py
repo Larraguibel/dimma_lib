@@ -8,26 +8,9 @@ from pathlib import Path
 
 
 def get_cache_dir(subdir: str = "") -> Path:
-    """Return the dimma cache directory, creating it if needed.
+    """Return an absolute path under the dimma cache root, creating it.
 
-    Resolution order:
-
-    1. ``DIMMA_HOME``, if set in the environment.
-    2. Otherwise the OS-appropriate user cache directory:
-
-       - Linux: ``$XDG_CACHE_HOME/dimma`` or ``~/.cache/dimma``
-       - macOS: ``~/Library/Caches/dimma``
-       - Windows: ``%LOCALAPPDATA%\\dimma\\Cache``
-
-    Parameters
-    ----------
-    subdir : str, optional
-        Subdirectory under the cache root, e.g. ``"datasets"``.
-
-    Returns
-    -------
-    pathlib.Path
-        Absolute path to the directory, which exists on return.
+    ``DIMMA_HOME`` overrides the OS-appropriate user cache directory.
     """
     override = os.environ.get("DIMMA_HOME")
     if override:

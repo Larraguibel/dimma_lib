@@ -16,26 +16,22 @@ from dimma.models.logreg import forward
 
 
 def _stable_bce(logit: jax.Array, y: jax.Array) -> jax.Array:
-    """Sigmoid BCE from a logit, elementwise and overflow-safe.
+    """Evaluate sigmoid BCE from a logit, elementwise and overflow-safe.
 
-    Evaluates ``max(z, 0) - z*y + log1p(exp(-|z|))``, which is
-    ``-[y*log(sigmoid(z)) + (1-y)*log(1-sigmoid(z))]`` rearranged so
-    that the only exponential taken has a non-positive argument. In
-    float32 the direct form loses the leading digits of
-    ``1 - sigmoid(z)`` from ``|z|`` of about 15 and takes ``log(0)``
-    from about 17, so it returns a plausible wrong number before it
-    returns ``inf`` or ``nan`` - both well short of the 88 where
-    ``exp`` itself overflows. This form is finite across the whole
-    float32 range, tending to ``max(z, 0) - z*y`` as ``|z|`` grows.
-
-    Broadcasts over any shape: a scalar for the per-sample loss, a
-    ``(B,)`` vector for the batch one.
+    Notes
+    -----
+    ``max(z, 0) - z*y + log1p(exp(-|z|))`` is the direct form
+    rearranged so the only exponential has a non-positive argument. Do
+    not restore the direct form: in float32 it loses the leading digits
+    of ``1 - sigmoid(z)`` from ``|z|`` of about 15 and takes ``log(0)``
+    from about 17, returning a plausible wrong number well before
+    ``exp`` itself overflows at 88.
     """
     return jnp.maximum(logit, 0.0) - logit * y + jnp.log1p(jnp.exp(-jnp.abs(logit)))
 
 
 def per_sample_bce_loss(params: dict, x: jax.Array, y: jax.Array) -> jax.Array:
-    """BCE for a **single** example under `dimma.models.logreg`.
+    """Return the BCE of a **single** example under `dimma.models.logreg`.
 
     This is the ``(params, x_single, y_single) -> scalar`` an algorithm
     takes. Composed with the linear logit, its gradient is
@@ -43,27 +39,37 @@ def per_sample_bce_loss(params: dict, x: jax.Array, y: jax.Array) -> jax.Array:
 
     Parameters
     ----------
-    params
+    params : dict, ``{"w": (d,), "b": ()}``
         Pytree as returned by `dimma.models.logreg.init_params`.
     x : jax.Array, shape ``(d,)``
         One feature vector.
     y : jax.Array, shape ``()``
         Binary label in ``{0., 1.}``.
+
+    Returns
+    -------
+    jax.Array, shape ``()``
+        The example's loss, in nats.
     """
     return _stable_bce(forward(params, x), y)
 
 
 def batch_bce_loss(params: dict, x: jax.Array, y: jax.Array) -> jax.Array:
-    """Mean BCE over a batch, a number to report at the call site.
+    """Return the mean BCE over a batch, a number to report at the call site.
 
     Parameters
     ----------
-    params
+    params : dict, ``{"w": (d,), "b": ()}``
         Pytree as returned by `dimma.models.logreg.init_params`.
     x : jax.Array, shape ``(B, d)``
         A batch of feature vectors.
     y : jax.Array, shape ``(B,)``
         Binary labels in ``{0., 1.}``.
+
+    Returns
+    -------
+    jax.Array, shape ``()``
+        The batch's mean loss, in nats.
     """
     logits = jax.vmap(forward, in_axes=(None, 0))(params, x)
     return jnp.mean(_stable_bce(logits, y))

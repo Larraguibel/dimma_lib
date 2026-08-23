@@ -16,9 +16,9 @@ per ADR-0009. The variation branch's noise scale,
 ``min(rate * ||w_t - w_{t-1}||, cap)``, depends on prior releases only,
 so it is chosen adaptively from public information.
 
-`grad_fn` and `optimizer` are *static* `jax.jit` arguments rather than
-traced ones - one is a function, the other a pair of them. Bind them
-once outside the loop, per branch::
+`grad_fn` and `optimizer` are *static* `jax.jit` arguments;
+`dimma.core.updates.Optimizer` says why. Bind them once outside the
+loop, per branch::
 
     from functools import partial
 
@@ -68,16 +68,29 @@ def anchor_release(
     grad_fn
         From `dimma.core.gradients.per_sample_grads`. Built once, so
         `jax.jit` sees a stable compilation key.
+    params
+        ``w_t``: the parameters every per-sample gradient is taken at, a
+        pytree of float arrays.
     x_batch, y_batch
         The padded batch, leading axis the anchor branch's padding cap.
     mask
         Shape ``(b_max,)``, 1.0 for a real example and 0.0 for padding.
+    key
+        A `jax.random` key for this release's Gaussian draw. One fresh
+        subkey per release: the accounting composes independent draws.
     expected_batch_size
         Algorithm 2's ``b_1``. The constant the sum is divided by, fixed
         before the run. Not the leading axis length and not
         ``mask.sum()``, both of which are data-dependent and would leak.
     noise_scale
-        Algorithm 2's ``sigma_1``.
+        Algorithm 2's ``sigma_1``, a standard deviation on the released
+        *mean* rather than on the sum.
+
+    Returns
+    -------
+    pytree
+        ``nabla_t``, in ``params``'s structure. This is the anchor
+        mechanism's release; everything downstream is post-processing.
     """
     per_sample = grad_fn(params, x_batch, y_batch)
     mean = aggregation.average_over_batch(
@@ -120,17 +133,38 @@ def variation_release(
 
     Parameters
     ----------
+    grad_fn
+        From `dimma.core.gradients.per_sample_grads`. Built once, so
+        `jax.jit` sees a stable compilation key. Called twice here, at
+        each of the two parameter sets.
     params, previous_params
         ``w_t`` and ``w_{t-1}``. Both are evaluated against the *same*
         batch, which is what makes the difference a variance-reduced
         estimate rather than two independent ones.
+    x_batch, y_batch
+        The padded batch, leading axis the variation branch's padding
+        cap.
+    mask
+        Shape ``(b_max,)``, 1.0 for a real example and 0.0 for padding.
+    key
+        A `jax.random` key for this release's Gaussian draw. One fresh
+        subkey per release: the accounting composes independent draws.
     expected_batch_size
-        Algorithm 2's ``b_2``, a constant fixed before the run.
+        Algorithm 2's ``b_2``, a constant fixed before the run. Not the
+        leading axis length and not ``mask.sum()``, both of which are
+        data-dependent and would leak.
     noise_rate, noise_cap
         Algorithm 2's ``sigma_2`` and ``sigma-hat_2``. The standard
         deviation actually added is
         ``min(noise_rate * ||w_t - w_{t-1}||, noise_cap)``, where the
         norm is global across the parameter pytree.
+
+    Returns
+    -------
+    pytree
+        ``Delta_t``, in ``params``'s structure. This is the variation
+        mechanism's release; accumulating it into a running estimate is
+        `variation_step`'s, on the post-processing side.
     """
     per_sample = pytree.sub(
         grad_fn(params, x_batch, y_batch),
@@ -161,9 +195,46 @@ def anchor_step(
 
     The anchor release *is* the running estimate — Algorithm 2 assigns
     it to ``nabla_t`` outright, so a phase starts over rather than
-    accumulating. Returns ``(params, estimate, opt_state)``; the
-    estimate is returned because the loop carries it into the variation
-    branch, and it is already released, so passing it on costs nothing.
+    accumulating.
+
+    Parameters
+    ----------
+    grad_fn
+        From `dimma.core.gradients.per_sample_grads`, built once outside
+        the loop.
+    optimizer
+        Algorithm 2's line 16, ``updates.sgd(eta)``.
+    params
+        ``w_t``: the current parameters, a pytree of float arrays.
+    opt_state
+        The optimizer's state, as `dimma.core.updates.init` built it and
+        the previous step returned it.
+    x_batch, y_batch
+        The padded batch, leading axis the anchor branch's padding cap.
+    mask
+        Shape ``(b_max,)``, 1.0 for a real example and 0.0 for padding.
+    key
+        A `jax.random` key for this step's Gaussian draw.
+    expected_batch_size
+        Algorithm 2's ``b_1``.
+    noise_scale
+        Algorithm 2's ``sigma_1``.
+
+    Returns
+    -------
+    params : pytree
+        ``w_{t+1}``, in ``params``'s structure.
+    estimate : pytree
+        ``nabla_t``, the release itself. Returned because the loop
+        carries it into the variation branch, and it is already public,
+        so passing it on costs nothing.
+    opt_state : updates.OptState
+        The optimizer's state after this update.
+
+    See Also
+    --------
+    anchor_release : The release this applies, and where the
+        privacy-relevant arguments are documented in full.
     """
     estimate = anchor_release(
         grad_fn, params, x_batch, y_batch, mask, key,
@@ -201,7 +272,45 @@ def variation_step(
     of the seam: nothing privacy-relevant happens after
     `variation_release` returns.
 
-    Returns ``(params, estimate, opt_state)``.
+    Parameters
+    ----------
+    grad_fn
+        From `dimma.core.gradients.per_sample_grads`, built once outside
+        the loop.
+    optimizer
+        Algorithm 2's line 16, ``updates.sgd(eta)``.
+    params, previous_params
+        ``w_t`` and ``w_{t-1}``, both pytrees of float arrays.
+    previous_estimate
+        ``nabla_{t-1}``, the running estimate this step adds to. Comes
+        from the previous step of either branch, already released.
+    opt_state
+        The optimizer's state, as the previous step returned it.
+    x_batch, y_batch
+        The padded batch, leading axis the variation branch's padding
+        cap.
+    mask
+        Shape ``(b_max,)``, 1.0 for a real example and 0.0 for padding.
+    key
+        A `jax.random` key for this step's Gaussian draw.
+    expected_batch_size
+        Algorithm 2's ``b_2``.
+    noise_rate, noise_cap
+        Algorithm 2's ``sigma_2`` and ``sigma-hat_2``.
+
+    Returns
+    -------
+    params : pytree
+        ``w_{t+1}``, in ``params``'s structure.
+    estimate : pytree
+        ``nabla_t = nabla_{t-1} + Delta_t``, carried into the next step.
+    opt_state : updates.OptState
+        The optimizer's state after this update.
+
+    See Also
+    --------
+    variation_release : The release this applies, and where the
+        privacy-relevant arguments are documented in full.
     """
     increment = variation_release(
         grad_fn, params, previous_params, x_batch, y_batch, mask, key,

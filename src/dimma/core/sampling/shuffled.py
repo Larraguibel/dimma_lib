@@ -37,15 +37,17 @@ def batches(rng: np.random.Generator, n: int,
         Indices, shape ``(batch_size,)``. An array on its own, not the
         ``(indices, mask)`` pair the Poisson samplers return.
 
-    Unbounded, because the loop above is counted in steps and not in
-    epochs.
-
     Raises
     ------
     ValueError
         If ``batch_size`` is outside ``(0, n]``. Above ``n`` no epoch
         holds a full batch and the stream would be empty. Raised when
         the stream is built, not when it is first advanced.
+
+    Notes
+    -----
+    The stream is unbounded, because the loop above is counted in steps
+    and not in epochs.
     """
     if not 0 < batch_size <= n:
         raise ValueError(

@@ -17,24 +17,52 @@ import jax.numpy as jnp
 
 
 def per_sample_grads(per_sample_loss_fn: Callable) -> Callable:
-    """One gradient per example, for per-example DP algorithms.
+    """Return a function giving one gradient per example.
 
-    Returns ``(params, x_batch, y_batch) -> pytree`` with leaves of
-    shape ``(B, *param_shape)``, the layout stages 4 and 5 expect.
+    What the per-example DP algorithms differentiate with.
 
-    Build it once outside the training loop so ``jax.jit`` sees a stable
-    compilation key.
+    Parameters
+    ----------
+    per_sample_loss_fn : callable
+        ``(params, x_single, y_single) -> scalar``, taking one example
+        rather than a batch.
+
+    Returns
+    -------
+    callable
+        ``(params, x_batch, y_batch) -> pytree`` matching ``params``,
+        with leaves of shape ``(B, *param_shape)`` — the layout stages
+        4 and 5 expect. ``x_batch`` and ``y_batch`` are mapped over
+        their leading axis; ``params`` is not.
+
+    Notes
+    -----
+    Build it once outside the training loop so ``jax.jit`` sees a
+    stable compilation key.
     """
     return jax.vmap(jax.grad(per_sample_loss_fn), in_axes=(None, 0, 0))
 
 
 def batch_grads(per_sample_loss_fn: Callable) -> Callable:
-    """One gradient for the mean loss, for the non-private baselines.
+    """Return a function giving one gradient for the mean loss.
 
-    Returns ``(params, x_batch, y_batch) -> pytree`` with no leading
-    batch axis. Stages 4 and 6 are dropped and stage 5 is already done.
-    Takes the same loss a private algorithm would be given, which is
-    what keeps the comparison controlled.
+    What the non-private baselines differentiate with: stages 4 and 6
+    are dropped and stage 5 is already done. Takes the same loss a
+    private algorithm would be given, which is what keeps the
+    comparison controlled.
+
+    Parameters
+    ----------
+    per_sample_loss_fn : callable
+        ``(params, x_single, y_single) -> scalar``, the same loss
+        :func:`per_sample_grads` takes.
+
+    Returns
+    -------
+    callable
+        ``(params, x_batch, y_batch) -> pytree`` matching ``params``,
+        with no leading batch axis: the gradient of the batch's mean
+        loss.
     """
     batched_loss = jax.vmap(per_sample_loss_fn, in_axes=(None, 0, 0))
 

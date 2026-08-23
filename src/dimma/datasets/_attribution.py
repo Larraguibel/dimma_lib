@@ -15,16 +15,7 @@ _emit_lock = threading.Lock()
 
 
 def emit_once(key: str, message: str) -> None:
-    """Print ``message`` to stderr exactly once per process per ``key``.
-
-    Parameters
-    ----------
-    key : str
-        Unique identifier for the message. The same key never prints
-        twice in one process.
-    message : str
-        Printed verbatim to ``sys.stderr``, followed by a newline.
-    """
+    """Print ``message`` to stderr exactly once per process per ``key``."""
     with _emit_lock:
         if key in _emitted_keys:
             return

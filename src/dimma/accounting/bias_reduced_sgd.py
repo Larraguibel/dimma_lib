@@ -22,10 +22,21 @@ parameters ``x_t``, the scale and the batch ``B_t``:
 - one further Gaussian mean release over the single record ``I_t``, at
   ``(eps/32, delta/16)``, amplified at rate ``1 / n``.
 
-which is::
+Amplification is Lemma 5.3's, and it is not ``eps -> q eps``: at rate
+``q``, and for ``eps <= 1``, a subsampled ``(eps, delta)`` mechanism is
+``(2 q eps, q delta)``-DP. The two on the epsilon arm is the slack in
+``log(1 + q (e ** eps - 1)) <= 2 q eps``, and it is the whole
+difference between the ``16`` below and the ``32`` a reader who
+amplified linearly would land on. The delta arm carries no such factor.
+So::
 
-    eps_t   = (3 * 2 ** (N_t + 1) + 1) * eps / (16 * n)
-    delta_t = (3 * 2 ** (N_t + 1) + 1) * delta / (16 * n)
+    eps_t   = 2 * (2 ** (N_t + 1) / n) * (3 * eps / 32)
+              + 2 * (1 / n) * (eps / 32)
+            = (3 * 2 ** (N_t + 1) + 1) * eps / (16 * n)
+
+    delta_t = (2 ** (N_t + 1) / n) * (3 * delta / 16)
+              + (1 / n) * (delta / 16)
+            = (3 * 2 ** (N_t + 1) + 1) * delta / (16 * n)
 
 Both are functions of the coin alone. No data enters a cost, which is
 what lets `permits` be consulted before the batch is drawn, and what
@@ -50,9 +61,14 @@ where the number is made:
   ``k``, with ``L`` the clipping norm. The training loop enforces
   ``L`` by clipping, so that half is code; that the mean's sensitivity
   is ``2 L / k`` under add-or-remove-one adjacency is the paper's;
-- **the budget is at most 1.** Lemma 5.3's amplification is stated for
-  ``eps <= 1``. Above it the per-step cost here is an *under*-estimate,
-  so the loop refuses such a budget rather than reporting from it;
+- **the budget is at most 1.** Lemma 5.3's amplification, and with it
+  the factor of two above, is stated for ``eps <= 1``. Above it the
+  per-step cost here is an *under*-estimate, so `_check_budget` refuses
+  such a budget rather than reporting from it. This is the one home for
+  that premise; `dimma.algorithms.bias_reduced_sgd` cites it;
+- **``delta`` is below ``1 / n ** 2``.** Lemma 5.5's stopping-time
+  bound assumes it. Above it the privacy still holds and the expected
+  step count does not, so this one is stated here rather than enforced;
 - **the inner mechanism is Gaussian.** `check_claim` enforces exactly
   this much, by type, and refuses anything else.
 
@@ -101,8 +117,9 @@ class Spent(NamedTuple):
     """
 
     steps: int
-    """Releases the filter has been charged for, which for this
-    algorithm is also the number of updates taken."""
+    """Steps the filter has been charged for, one per `spend` call, and
+    so also the number of updates taken. Not a count of releases: a step
+    is four of those, priced together above."""
 
     sum_squared_epsilon: float
     """``sum_s eps_s ** 2`` over the steps charged so far."""
@@ -182,7 +199,9 @@ def check_claim(claim: Any) -> None:
 
 def inner_noise_multiplier(*, target_epsilon: float,
                            target_delta: float) -> float:
-    """The multiplier every inner mean release runs at::
+    """Return the noise multiplier every inner mean release runs at.
+
+    ::
 
         32 * sqrt(2 * ln(20 / delta)) / epsilon
 
@@ -223,7 +242,9 @@ def inner_noise_multiplier(*, target_epsilon: float,
 
 def step_cost(*, scale: int, n: int, target_epsilon: float,
               target_delta: float) -> tuple[float, float]:
-    """Lemma 5.3's price for one step at a drawn scale::
+    """Price one step, at the scale the coin drew for it.
+
+    Lemma 5.3's cost, as the module docstring derives it::
 
         (3 * 2 ** (scale + 1) + 1) * (epsilon, delta) / (16 * n)
 
@@ -297,7 +318,9 @@ def spend(spent: Spent, cost: tuple[float, float]) -> Spent:
 
 
 def epsilon(spent: Spent, *, target_delta: float) -> float:
-    """Theorem A.4's ``eps[0:t]``, at the paper's ``delta' = delta/4``::
+    """Return the epsilon a filtered transcript has spent so far.
+
+    Theorem A.4's ``eps[0:t]``, at the paper's ``delta' = delta/4``::
 
         sqrt(2 ln(4 / delta) * sum eps_s ** 2) + 0.5 * sum eps_s ** 2
 

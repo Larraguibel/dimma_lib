@@ -36,24 +36,35 @@ _CLIP = 1e-15
 
 
 def log_loss(probs: object, labels: object) -> float:
-    """Mean binary cross-entropy, in nats. Lower is better.
+    """Return the mean binary cross-entropy, in nats. Lower is better.
 
     The same quantity the optimizer descends, which is why it is the
     default for choosing between runs: selection and training then agree
     on what better means, with no proxy in between.
 
-    Probabilities are clipped into ``[1e-15, 1 - 1e-15]`` before the
-    logarithm, so a prediction of exactly 0 or 1 that turned out wrong
-    contributes about 34.5 rather than infinity. That is a floor on how
-    bad a single record is allowed to look, not a fact about the model;
-    see the module docstring for the route that does not need it.
+    A prediction of exactly 0 or 1 that turned out wrong contributes
+    about 34.5 rather than infinity, since probabilities are clipped into
+    ``[1e-15, 1 - 1e-15]`` first. That bound is a floor on how bad a
+    single record is allowed to look, not a fact about the model; see the
+    module docstring for the route that does not need it.
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
+
+    Returns
+    -------
+    float
+        Mean cross-entropy over the records, in nats, at least 0.0 and
+        at most about 34.5. Lower is better.
+
+    Raises
+    ------
+    ValueError
+        For any of the input problems `dimma.metrics._inputs` validates.
     """
     p, y = as_probabilities_and_labels(probs, labels)
     p = np.clip(p, _CLIP, 1.0 - _CLIP)
@@ -61,7 +72,7 @@ def log_loss(probs: object, labels: object) -> float:
 
 
 def brier_score(probs: object, labels: object) -> float:
-    """Mean squared error against the 0/1 label. Lower is better.
+    """Return the mean squared error against the 0/1 label. Lower is better.
 
     The other strictly proper score in common use, and the one whose
     decomposition is exact rather than approximate. Bounded in
@@ -72,25 +83,34 @@ def brier_score(probs: object, labels: object) -> float:
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
+
+    Returns
+    -------
+    float
+        Mean squared error, in ``[0, 1]``. Lower is better.
+
+    Raises
+    ------
+    ValueError
+        For any of the input problems `dimma.metrics._inputs` validates.
     """
     p, y = as_probabilities_and_labels(probs, labels)
     return float(np.mean((p - y) ** 2))
 
 
 def normalized_entropy(probs: object, labels: object) -> float:
-    """Log loss divided by the entropy of the base rate. Lower is better.
+    """Return the log loss divided by the base rate's entropy. Lower is better.
 
-    The metric the Facebook ads paper reports, and the one that makes log
-    losses comparable across datasets with different base rates. Raw log
-    loss falls as the base rate approaches 0 or 1 for reasons that have
-    nothing to do with the model — predicting a rare event is simply
-    cheaper to be right about on average — so a log loss of 0.15 is a
-    different achievement at a 3% base rate than at 25%. Dividing by the
-    entropy of the base rate removes that.
+    Makes log losses comparable across datasets with different base
+    rates. Raw log loss falls as the base rate approaches 0 or 1 for
+    reasons that have nothing to do with the model — predicting a rare
+    event is simply cheaper to be right about on average — so a log loss
+    of 0.15 is a different achievement at a 3% base rate than at 25%.
+    Dividing by the entropy of the base rate removes that.
 
     Reads directly: 1.0 is what predicting the base rate for every record
     scores, so anything at or above 1.0 has learned nothing, and the
@@ -99,16 +119,28 @@ def normalized_entropy(probs: object, labels: object) -> float:
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
+
+    Returns
+    -------
+    float
+        Log loss in units of the base rate's entropy, ``>= 0``. 1.0 is
+        the constant predictor. Lower is better.
 
     Raises
     ------
     ValueError
         If the labels are constant, leaving no uncertainty to normalize
-        against.
+        against, or for any of the input problems
+        `dimma.metrics._inputs` validates.
+
+    References
+    ----------
+    .. [1] He et al., "Practical Lessons from Predicting Clicks on Ads at
+       Facebook", ADKDD 2014.
     """
     p, y = as_probabilities_and_labels(probs, labels)
     return log_loss(p, y) / base_rate_entropy(float(np.mean(y)))

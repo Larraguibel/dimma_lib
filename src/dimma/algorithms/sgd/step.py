@@ -42,13 +42,22 @@ def step(
         `dimma.core.updates.sgd`, the same object DP-SGD is given.
         Another rule makes this a different baseline, and the caller's
         to report.
+    params
+        ``theta_t``: the current parameters, a pytree of float arrays.
+    opt_state
+        The optimizer's state, as `dimma.core.updates.init` built it and
+        the previous call returned it.
     x_batch, y_batch
         The batch, leading axis ``batch_size``. No mask: shuffled
         sampling has fixed cardinality, so nothing is padded.
 
     Returns
     -------
-    (params, opt_state)
+    params : pytree
+        ``theta_{t+1}``, in ``params``'s structure and dtypes.
+    opt_state : updates.OptState
+        The optimizer's state after this update, shape-invariant across
+        calls so the loop can thread it back through `jax.jit`.
 
     Notes
     -----

@@ -155,9 +155,9 @@ def train(
     target_epsilon, target_delta
         The run's whole budget, and the only thing that sets its
         length. ``target_epsilon`` must be at most 1 and
-        ``target_delta`` should further be below ``1 / n ** 2``; the
-        package docstring's preconditions say what each assumption
-        buys.
+        ``target_delta`` should further be below ``1 / n ** 2``;
+        `dimma.accounting.bias_reduced_sgd`'s module docstring states
+        what each assumption buys.
     clip_norm
         The paper's ``L``, enforced by stage 4 (ADR-0012) rather than
         assumed of the loss. It reaches the step through
@@ -211,13 +211,9 @@ def train(
 
     Notes
     -----
-    **What is reported, and why it is not a metric.** `Run.steps` and
-    `Run.spent` are deterministic functions of the public coin and the
-    budget, so ADR-0006's rule against loops reporting metrics — which
-    is about evaluating the model on the training data — does not
-    reach them. They are also necessary: ``T`` is an output of this
-    algorithm, so a caller who did not receive it could not account
-    for the run at all.
+    `Run.steps` and `Run.spent` are reported without breaking
+    ADR-0006's rule against loops reporting metrics; ADR-0018 records
+    why, and why ``T`` has to be an output.
 
     No epsilon is computed here. Turning `Run.spent` into a number is
     ``accounting.bias_reduced_sgd.epsilon(run.spent,
@@ -230,9 +226,9 @@ def train(
     ``target_delta / 4``, while the run's guarantee is still
     ``(target_epsilon, target_delta)`` by Lemma 5.3 (ADR-0018).
 
-    No optimizer state is returned. `train` accepts none, so it cannot
-    consume what it would hand back, and a caller who resumed from it
-    would replay this run's noise stream and its filter from the start.
+    No optimizer state is returned, as in
+    `dimma.algorithms.dp_sgd.train`. A resumed run here would replay
+    the filter's state as well as the noise stream.
     """
     n = int(x.shape[0])
     if n < 2:

@@ -119,7 +119,9 @@ def batch_release(
     *,
     batch_size: int,
 ) -> BatchRelease:
-    """Algorithm 3's three batch lines, on one draw::
+    """Release the three private batch means the triplet is made of.
+
+    Algorithm 3's three batch lines, on one draw::
 
         G+_{N+1} = Estimator(mean over B, |B| = 2 ** (N + 1))
         G-_N     = Estimator(mean over O, |O| = 2 ** N)
@@ -145,9 +147,16 @@ def batch_release(
         The inner mean estimator. Stage 4 clips here to its
         ``claim.clip_norm``, which appears nowhere else in this
         signature.
+    params
+        ``x^t``: the parameters every per-sample gradient is taken at,
+        a pytree of float32 arrays.
     x_batch, y_batch
         The gathered rows of ``B``, leading axis exactly
         ``batch_size``. Nothing is padded and there is no mask.
+    key
+        A `jax.random` key for this release. Split three ways inside,
+        one perturbation per inner call, so a caller passes one key per
+        batch release and never reuses one.
     batch_size
         ``2 ** (N + 1)``, the exact cardinality the coin fixed before
         any data was touched — CONTEXT.md's expected batch size in the
@@ -213,10 +222,29 @@ def single_release(
 
     Parameters
     ----------
+    grad_fn
+        From `dimma.core.gradients.per_sample_grads`. The same one the
+        batch release is bound with, so both differentiate identically.
+    estimator
+        The inner mean estimator. Stage 4 clips here to its
+        ``claim.clip_norm``, and the same estimator serves this slot and
+        the batch's — that is what the seam is for.
+    params
+        ``x^t``: the parameters the gradient is taken at, a pytree of
+        float32 arrays.
     x_single, y_single
         One gathered row each, leading axis 1. That shape is the same
         at every scale, which is why this release compiles once for a
         whole run.
+    key
+        A `jax.random` key for this release's perturbation, independent
+        of the batch release's.
+
+    Returns
+    -------
+    pytree
+        ``G_0``, a float32 pytree in ``params``'s structure. The second
+        mechanism's whole release.
 
     Notes
     -----
@@ -262,7 +290,9 @@ def debiased_gradient(
     *,
     scale_probability: float,
 ) -> Any:
-    """Algorithm 3's Return line, in float64 on the host::
+    """Combine the four releases into the debiased gradient estimate.
+
+    Algorithm 3's Return line, in float64 on the host::
 
         G(x) = (1 / p_N) * [G+ - 0.5 * (G-_O + G-_E)] + G_0
 
@@ -341,7 +371,25 @@ def step(
     Parameters
     ----------
     releases
-        The two compiled release callables.
+        The two compiled release callables, bound outside the loop.
+    optimizer
+        Algorithm 4's descent, ``updates.sgd(eta)``. ``Pi_X`` is wrapped
+        around it by the caller, not passed here. Its arithmetic decides
+        whether the float64 apply side survives — see the Notes.
+    params
+        ``x^t``: the current parameters, a host `numpy` float64 pytree.
+        Converted to float32 for the release calls and left alone for
+        the update.
+    opt_state
+        The optimizer's state, as `dimma.core.updates.init` built it and
+        the previous step returned it.
+    x_batch, y_batch
+        The gathered rows of ``B``, leading axis exactly ``batch_size``.
+    x_single, y_single
+        The gathered row of ``I``, leading axis 1. Drawn independently
+        of ``B``, which is why it is a second mechanism.
+    batch_key, single_key
+        One `jax.random` key per release, independent of each other.
     batch_size, scale_probability
         ``2 ** (N + 1)`` and ``p_N`` for the scale this step drew. Both
         come from the coin, which is public and touches no data — which
@@ -349,9 +397,12 @@ def step(
 
     Returns
     -------
-    tuple
-        ``(params, opt_state)``, and nothing else: the releases were
-        made public already by the mechanisms that produced them.
+    params : pytree
+        ``x^{t+1}``, in ``params``'s structure and dtypes.
+    opt_state : updates.OptState
+        The optimizer's state after this update. Nothing else is
+        returned: the releases were made public already by the
+        mechanisms that produced them.
 
     Notes
     -----

@@ -37,14 +37,21 @@ class LipschitzConstants(NamedTuple):
     """
 
     lipschitz_constant: float
+    """``L0 > 0``: the bound on a per-sample gradient's ``l_2`` norm."""
+
     smoothness_constant: float
+    """``L1 > 0``: the Lipschitz constant of the gradient, in the same
+    units as ``L0`` per unit of parameter distance."""
+
     step_size: float
+    """``eta = 1 / (2 * L1) > 0``, Theorem B.3's. Not passed to the
+    accountant: it goes to the optimizer the training loop runs."""
 
 
 def logreg_bce_constants(
     feature_norm_bound: float, *, has_bias: bool
 ) -> LipschitzConstants:
-    """The triple implied by a feature-norm bound. Takes no data.
+    """Return the triple a feature-norm bound implies, touching no data.
 
     Parameters
     ----------
@@ -63,6 +70,12 @@ def logreg_bce_constants(
     Returns
     -------
     constants : LipschitzConstants
+        ``L0 = sqrt(R ** 2 + [has_bias])``,
+        ``L1 = (R ** 2 + [has_bias]) / 4`` and ``eta = 1 / (2 * L1)``,
+        all positive and finite. ``L0`` and ``L1`` are in the loss's
+        gradient units; ``eta`` is their reciprocal, and is the step
+        size the optimizer must descend with for the accountant's
+        epsilon to describe the run.
 
     Raises
     ------

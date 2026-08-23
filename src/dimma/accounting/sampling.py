@@ -42,6 +42,10 @@ from dp_accounting import (
 )
 
 Method = Literal["rdp", "pld"]
+"""Which accountant converts a composition to epsilon: ``"rdp"``, a
+Renyi accountant, or ``"pld"``, a privacy loss distribution. Every
+function here defaults to ``"rdp"``; ADR-0011 records why, and the two
+are not interchangeable in a reported number."""
 
 # The least noise `calibrate_noise_multiplier` will consider. Not a
 # privacy parameter: below it epsilon is large enough that the Renyi
@@ -67,18 +71,21 @@ class PoissonGaussianSchedule(NamedTuple):
     """
 
     sampling_probability: float
+    """``q = L / n`` in ``(0, 1]``: the per-example inclusion
+    probability, per step and per example."""
+
     noise_multiplier: float
+    """``z > 0``: the standard deviation added, in units of the sum's
+    ``l_2`` sensitivity. Dimensionless, so it is not ``z * S``."""
+
     num_compositions: int
+    """``T >= 0``: releases on this schedule. Steps, not epochs. Zero
+    costs nothing and is dropped."""
 
 
 class _DroppedOrders(logging.Handler):
-    """Collects `RdpAccountant`'s failure-to-converge notices.
-
-    They arrive through `absl` logging rather than `warnings`, so
-    `warnings.catch_warnings` does not see them and a caller who has
-    turned warnings into errors is not protected. This turns them back
-    into the channel a caller can control.
-    """
+    """Collect `RdpAccountant`'s failure-to-converge notices, which
+    arrive through `absl` logging rather than `warnings`."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -94,10 +101,10 @@ class _DroppedOrders(logging.Handler):
 def _watching_rdp_orders():
     """Capture dropped Renyi orders, and mute the log line meanwhile.
 
-    Muting has to be done by displacing the handlers rather than by
-    raising the logger's level, which would drop the records before
-    anything could collect them. Restores both on the way out, so a
-    caller's own `absl` logging configuration survives.
+    Notes
+    -----
+    Displaces the handlers rather than raising the logger's level:
+    the level would drop the records before anything could collect them.
     """
     logger = logging.getLogger("absl")
     handler = _DroppedOrders()
@@ -114,12 +121,9 @@ def _watching_rdp_orders():
 def _validate(releases: Sequence[PoissonGaussianSchedule],
               target_delta: float, method: Method, *,
               qualify: bool = True) -> None:
-    """Reject nonsense before it becomes a number someone reports.
-
-    ``qualify`` is False for the single-schedule wrappers, whose caller
-    typed bare parameter names and should not be told about an index
-    into a sequence they never passed.
-    """
+    """Reject nonsense before it becomes a number someone reports;
+    ``qualify`` is False for the single-schedule wrappers, whose callers
+    passed no sequence to be indexed in the message."""
     if not 0.0 < target_delta < 1.0:
         raise ValueError(f"target_delta={target_delta} must be in (0, 1).")
     if method not in ("rdp", "pld"):
@@ -145,17 +149,14 @@ def _validate(releases: Sequence[PoissonGaussianSchedule],
 
 def _bracket(epsilon_at: Callable[[float], float], target_epsilon: float,
              target_delta: float) -> tuple[float, float]:
-    """Two multipliers the answer lies between, found by doubling.
+    """Bracket the answer by doubling outward from a guess.
 
-    Expands outward from a guess rather than handing the root-finder
-    the whole plausible range: `brentq`'s tolerance is absolute, so a
-    bracket spanning decades is paid for in iterations, and PLD's
-    discretisation grows without bound as the multiplier shrinks, so a
-    search that evaluates the small end only when it must is the one
-    that terminates.
-
-    Epsilon is monotone decreasing in the multiplier, which is what
-    makes doubling sound.
+    Notes
+    -----
+    Sound because epsilon is monotone decreasing in the multiplier.
+    Outward from a guess rather than over the whole plausible range,
+    which would be paid for in `brentq` iterations and in PLD
+    discretisation at the small end.
     """
     guess = _SEARCH_INITIAL_GUESS
     if epsilon_at(guess) > target_epsilon:
@@ -238,12 +239,9 @@ def composed_poisson_gaussian_epsilon(
 def _composed(releases: Sequence[PoissonGaussianSchedule],
               target_delta: float, method: Method, *,
               qualify: bool, warn: bool = True) -> float:
-    """`composed_poisson_gaussian_epsilon`, minus the naming of blame.
-
-    ``warn`` is False for the multipliers a search merely probes: those
-    are not results, and a dropped order at one says nothing about the
-    answer the search returns.
-    """
+    """`composed_poisson_gaussian_epsilon`, minus the naming of blame;
+    ``warn`` is False for the multipliers a search merely probes, which
+    are not results."""
     _validate(releases, target_delta, method, qualify=qualify)
 
     charged = [r for r in releases if r.num_compositions > 0]
@@ -322,6 +320,13 @@ def poisson_gaussian_epsilon(sampling_probability: float,
     -------
     epsilon : float
         The privacy cost at ``target_delta``.
+
+    Warns
+    -----
+    UserWarning
+        As `composed_poisson_gaussian_epsilon`: when the Renyi
+        accountant drops an order it could not compute, leaving the
+        epsilon a valid but looser upper bound.
     """
     return _epsilon(sampling_probability, noise_multiplier, num_compositions,
                     target_delta, method)
@@ -332,9 +337,10 @@ def poisson_gaussian_truncated_epsilon(sampling_probability: float,
                                        num_compositions: int,
                                        target_delta: float, *,
                                        method: Method = "rdp") -> float:
-    """The standard number for the truncated sampler. **Not a bound.**
+    """Return the standard mechanism's number for the truncated sampler.
 
-    Accounts `dimma.core.sampling.poisson_truncated`, which caps draws
+    **Not a bound.** Accounts
+    `dimma.core.sampling.poisson_truncated`, which caps draws
     inside the support of ``Binomial(n, q)``. That makes inclusion
     dependent across examples, and independence is what subsampling
     amplification assumes, so the standard analysis does not apply.
@@ -349,13 +355,38 @@ def poisson_gaussian_truncated_epsilon(sampling_probability: float,
     Sound for development sanity checks and for ranking configurations,
     whose ordering it preserves under typical parameter changes. Never
     for a privacy claim. Numerically identical to
-    `poisson_gaussian_epsilon`, whose parameters it takes.
+    `poisson_gaussian_epsilon`.
+
+    Parameters
+    ----------
+    sampling_probability
+        ``q = L / N``, the per-example inclusion probability the
+        *untruncated* draw would have. The truncated sampler's realized
+        marginal is lower, and that gap is part of what is unquantified
+        above.
+    noise_multiplier
+        ``z = std / sensitivity``, the noise standard deviation over the
+        clipping norm.
+    num_compositions
+        Optimizer steps ``T``. Steps, not epochs.
+    target_delta
+        The ``delta`` at which the reference epsilon is read off.
+    method
+        ``"rdp"`` (default) or ``"pld"``; ADR-0011 records why. Since
+        neither prices the mechanism that ran, the choice moves a
+        reference value rather than a guarantee.
 
     Returns
     -------
     epsilon_reference : float
         The standard mechanism's epsilon, for a mechanism that is not
         the standard one.
+
+    Warns
+    -----
+    UserWarning
+        As `composed_poisson_gaussian_epsilon`, when the Renyi
+        accountant drops an order it could not compute.
     """
     return _epsilon(sampling_probability, noise_multiplier, num_compositions,
                     target_delta, method)
@@ -403,11 +434,14 @@ def calibrate_noise_multiplier(
     Raises
     ------
     ValueError
-        If the budget is not positive, if it is so loose that no
-        multiplier is meaningfully the smallest sufficient one, or if
-        no multiplier meets it at all. That last is reachable under
-        ``"rdp"`` at a very small target, for the reason the error
-        gives: epsilon there floors above zero.
+        If ``target_epsilon`` is not positive, if ``target_delta`` is
+        outside ``(0, 1)``, if ``method`` is neither ``"rdp"`` nor
+        ``"pld"``, if ``releases_from_multiplier`` describes no releases
+        or invalid ones, if the budget is so loose that no multiplier is
+        meaningfully the smallest sufficient one, or if no multiplier
+        meets it at all. That last is reachable under ``"rdp"`` at a
+        very small target, for the reason the error gives: epsilon
+        there floors above zero.
 
     Warns
     -----

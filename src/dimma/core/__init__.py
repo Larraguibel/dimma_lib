@@ -1,23 +1,7 @@
 """The architecture-agnostic math the pipeline is built from.
 
-Membership rule
----------------
-`core` is architecture-agnostic pytree math that names no algorithm,
-model, or dataset and makes no privacy claim. Something enters `core`
-only if it implements one of the seven pipeline stages, or is
-stage-independent math with at least two consumers in different
-modules.
+Organized by pipeline stage, one module per stage:
 
-Two questions decide it. *Which stage is this?* If none: *who else uses
-it?* If neither has an answer, it belongs with its consumer.
-
-Describing what a sampler samples, or which accounting assumption a
-primitive satisfies, is factual and allowed. Computing an epsilon,
-calibrating a scale to a budget, or calling a transformation free are
-claims, and belong to the accounting and transform layers.
-
-The stages
-----------
 =====  ======================  =============================
 Stage  What it does            Where it lives
 =====  ======================  =============================
@@ -31,19 +15,19 @@ Stage  What it does            Where it lives
 =====  ======================  =============================
 
 Stage 2 is the caller's, the model, which runs inside the per-sample
-loss they supply. dimma owns the other six: the five that turn a
-gradient into a private one, and the update rule its algorithms
-descend with. Which rules `updates` implements and which are named
-from `optax` at the call site is ADR-0002.
+loss they supply; dimma owns the other six. `dimma.core.pytree`
+(vector-space operations on pytrees) and `dimma.core.projection`
+(``l_1``-ball geometry) implement no stage and are admitted by the
+second half of the membership rule.
 
-Implementing no stage: `dimma.core.pytree` (vector-space operations on
-pytrees) and `dimma.core.projection` (``l_1``-ball geometry). Both are
-admitted by the second half of the rule, and both are closed sets.
-
-Imports
--------
-No functions are re-exported. Import from the stage module, so the
-import line says which stage the call belongs to:
+The rule: something enters `core` only if it implements one of the
+seven stages, or is stage-independent math with at least two consumers
+in different modules. ADR-0001 is why. Which update rules `updates`
+implements and which are named from `optax` at the call site is
+ADR-0002; the line between describing what a primitive does and
+claiming what it costs is ADR-0003. Nothing is re-exported — import
+from the stage module, so the import line says which stage the call
+belongs to (ADR-0004)::
 
     from dimma.core.clipping import per_sample_clip
 """

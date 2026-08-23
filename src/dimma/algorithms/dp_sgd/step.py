@@ -10,9 +10,9 @@ the only thing an accountant accounts for; `step` applies it, which is
 post-processing and free. Splitting there keeps what is privatized
 separable from what is done with it.
 
-`grad_fn` and `optimizer` are *static* `jax.jit` arguments rather than
-traced ones - one is a function, the other a pair of them. Bind them
-once outside the loop::
+`grad_fn` and `optimizer` are *static* `jax.jit` arguments;
+`dimma.core.updates.Optimizer` says why. Bind them once outside the
+loop::
 
     from functools import partial
 
@@ -42,7 +42,7 @@ def privatized_gradient(
     expected_batch_size: float,
     clip_norm: float,
     noise_multiplier: float,
-):
+) -> Any:
     """Algorithm 1's ``g~_t``, the privatized gradient estimate.
 
     Stages 3 through 6, in the paper's order::
@@ -60,10 +60,17 @@ def privatized_gradient(
     grad_fn
         From `dimma.core.gradients.per_sample_grads`. Built once, so
         `jax.jit` sees a stable compilation key.
+    params
+        ``theta_t``: the parameters every per-sample gradient is taken
+        at, a pytree of float arrays.
     x_batch, y_batch
         The padded batch, leading axis ``b_max``.
     mask
         Shape ``(b_max,)``, 1.0 for a real example and 0.0 for padding.
+    key
+        A `jax.random` key for this step's Gaussian draw. One fresh
+        subkey per step: reusing one releases the same noise twice and
+        the accounting assumes independent draws.
     expected_batch_size
         Algorithm 1's ``L``: the *expected* lot size ``q * N``, a
         constant. Not the leading axis length and not ``mask.sum()``,
@@ -74,6 +81,12 @@ def privatized_gradient(
         Algorithm 1's ``sigma``. The standard deviation actually added
         is ``sigma * C``, so the noise tracks the sensitivity and
         ``sigma`` alone determines the privacy cost.
+
+    Returns
+    -------
+    pytree
+        ``g~_t``, in ``params``'s structure. This is the mechanism's
+        release: everything downstream of it is post-processing.
     """
     per_sample = grad_fn(params, x_batch, y_batch)
     clipped = clipping.per_sample_clip(per_sample, clip_norm)
@@ -103,8 +116,45 @@ def step(
     subscript; any other optimizer departs from the paper, which is
     the caller's call to make and to report.
 
-    Returns ``(params, opt_state)``. Optimizer state derived from
-    ``g~_t`` is post-processing and costs no privacy budget.
+    Parameters
+    ----------
+    grad_fn
+        From `dimma.core.gradients.per_sample_grads`. Built once, so
+        `jax.jit` sees a stable compilation key.
+    optimizer
+        Algorithm 1 is ``updates.sgd(eta)``. Anything else is the
+        caller's departure to report.
+    params
+        ``theta_t``: the current parameters, a pytree of float arrays.
+    opt_state
+        The optimizer's state, as `dimma.core.updates.init` built it and
+        the previous call returned it.
+    x_batch, y_batch
+        The padded batch, leading axis ``b_max``.
+    mask
+        Shape ``(b_max,)``, 1.0 for a real example and 0.0 for padding.
+    key
+        A `jax.random` key for this step's Gaussian draw; one fresh
+        subkey per step.
+    expected_batch_size
+        Algorithm 1's ``L``, the *expected* lot size ``q * N``.
+    clip_norm
+        Algorithm 1's ``C``, the per-example ``l_2`` bound.
+    noise_multiplier
+        Algorithm 1's ``sigma``, the standard deviation over ``C``.
+
+    Returns
+    -------
+    params : pytree
+        ``theta_{t+1}``, in ``params``'s structure.
+    opt_state : updates.OptState
+        The optimizer's state after this update. Derived from ``g~_t``,
+        so it is post-processing and costs no privacy budget.
+
+    See Also
+    --------
+    privatized_gradient : The release this applies, and where the
+        privacy-relevant arguments are documented in full.
     """
     grad = privatized_gradient(
         grad_fn, params, x_batch, y_batch, mask, key,

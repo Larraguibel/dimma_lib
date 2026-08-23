@@ -19,8 +19,7 @@ the one that prefix reached and no threshold reproduces it: `confusion_at`
 at the returned threshold admits the whole tied run and scores lower.
 Distinct scores — what a continuous model on real features produces —
 have no such prefix, and the two agree exactly. The order within a tied
-run comes from ``np.argsort(-probs)`` at NumPy's default sort, which is
-deterministic for a given input but is not input order.
+run is `dimma.metrics._ranked`'s, which owns that choice.
 
 NumPy in float64, like the rest of `dimma.metrics`. Confusion counts come
 back as Python ints, and the 2x2 is returned as four named fields rather
@@ -45,12 +44,18 @@ class OperatingPoint(NamedTuple):
 
     `threshold` is one of the observed probabilities, and is inclusive:
     pass it to `confusion_at` to get the table behind `f1`.
+
+    Attributes
+    ----------
+    threshold : float in [0, 1]
+        The probability at or above which a record is predicted
+        positive.
+    f1 : float in [0, 1]
+        Harmonic mean of precision and recall at that cut.
     """
 
     threshold: float
-    """The probability at or above which a record is predicted positive."""
     f1: float
-    """Harmonic mean of precision and recall at that cut, in ``[0, 1]``."""
 
 
 class Confusion(NamedTuple):
@@ -59,20 +64,27 @@ class Confusion(NamedTuple):
     The four sum to the number of records scored. Ordered ``(tn, fp, fn,
     tp)`` when unpacked positionally, which is scikit-learn's ravelled
     order.
+
+    Attributes
+    ----------
+    true_negatives : int >= 0
+        Predicted negative, actually negative.
+    false_positives : int >= 0
+        Predicted positive, actually negative.
+    false_negatives : int >= 0
+        Predicted negative, actually positive.
+    true_positives : int >= 0
+        Predicted positive, actually positive.
     """
 
     true_negatives: int
-    """Predicted negative, actually negative."""
     false_positives: int
-    """Predicted positive, actually negative."""
     false_negatives: int
-    """Predicted negative, actually positive."""
     true_positives: int
-    """Predicted positive, actually positive."""
 
 
 def best_f1_threshold(probs: object, labels: object) -> OperatingPoint:
-    """The cut maximising F1, and the F1 there.
+    """Return the cut maximising F1, and the F1 there.
 
     Every observed score is a candidate, so this is the exact maximiser
     over cuts rather than a search over a grid. Where several cuts reach
@@ -81,20 +93,23 @@ def best_f1_threshold(probs: object, labels: object) -> OperatingPoint:
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
 
     Returns
     -------
     OperatingPoint
+        The maximising threshold, applied inclusively, and the F1 the
+        prefix ending there reached. See the module docstring on ties.
 
     Raises
     ------
     ValueError
-        If the labels hold no positive. Recall is then undefined at every
-        cut and there is no F1 to maximise.
+        If the labels hold no positive — recall is then undefined at
+        every cut and there is no F1 to maximise — or for any of the
+        input problems `dimma.metrics._inputs` validates.
     """
     ranked = rank_by_score(probs, labels)
     if ranked.positives == 0.0:
@@ -115,13 +130,13 @@ def best_f1_threshold(probs: object, labels: object) -> OperatingPoint:
 def confusion_at(
     probs: object, labels: object, threshold: float
 ) -> Confusion:
-    """The 2x2 table for `predict positive when p >= threshold`.
+    """Return the 2x2 table for `predict positive when p >= threshold`.
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
     threshold : float
         The cut, applied inclusively. Below every score it predicts every
@@ -130,6 +145,13 @@ def confusion_at(
     Returns
     -------
     Confusion
+        The four counts at that cut, summing to the number of records
+        scored.
+
+    Raises
+    ------
+    ValueError
+        For any of the input problems `dimma.metrics._inputs` validates.
     """
     p, y = as_probabilities_and_labels(probs, labels)
 

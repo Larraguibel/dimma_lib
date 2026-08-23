@@ -17,8 +17,7 @@ Steps, not epochs. An optimizer's state advances once per `apply`
 call, so a schedule indexes on the same count a run's length is
 measured in.
 
-Makes no privacy claim: what an update costs depends on the mechanism
-that produced the estimate, not on this stage.
+Makes no privacy claim; ADR-0003.
 """
 
 from __future__ import annotations
@@ -53,15 +52,25 @@ class Optimizer(NamedTuple):
     """An ``(init, update)`` pair, structurally optax's transformation.
 
     ``update(estimate, state, params=None) -> (increment, new_state)``,
-    where ``increment`` is *added* to the parameters. `params` is
-    accepted and ignored here; it exists so a rule that needs the
-    current parameters fits the same signature. The match is
-    structural, not nominal - an `isinstance` check against optax's
-    type fails.
+    where ``increment`` is *added* to the parameters. ``params`` is part
+    of the protocol rather than a courtesy: an implementation may ignore
+    it, as `sgd` does, or require it and raise when it is ``None``, as
+    `dimma.transforms.projection.l1_projected` does. `apply` always
+    passes it, so a rule needing the current point is safe there and
+    only a hand-rolled ``update(estimate, state)`` call can miss it. The
+    match with optax is structural, not nominal - an `isinstance` check
+    against optax's type fails; ADR-0002.
 
     Holds functions, so it is a *static* argument to `jax.jit` rather
     than a traced one: bind it with `functools.partial`, or name it in
     ``static_argnums``.
+
+    Attributes
+    ----------
+    init : callable
+        ``params -> OptState``, building the initial state.
+    update : callable
+        ``(estimate, state, params=None) -> (increment, new_state)``.
     """
 
     init: Callable[[Any], OptState]
@@ -69,10 +78,11 @@ class Optimizer(NamedTuple):
 
 
 class SgdState(NamedTuple):
-    """`sgd`'s state: updates applied so far, the unit a run's length
-    is measured in."""
+    """`sgd`'s state: a step count and nothing else."""
 
     count: jax.Array
+    """Updates applied so far, shape ``()``, ``int32``. The unit a run's
+    length is measured in, and the index a `Schedule` reads."""
 
 
 def sgd(learning_rate: float | Schedule) -> Optimizer:
@@ -84,9 +94,21 @@ def sgd(learning_rate: float | Schedule) -> Optimizer:
 
     Parameters
     ----------
-    learning_rate
+    learning_rate : float > 0, or a `Schedule`
         A constant ``eta``, or a `Schedule` for a step-dependent one.
         A schedule is called with the update count.
+
+    Returns
+    -------
+    Optimizer
+        Whose ``init`` returns a `SgdState` and whose ``update``
+        ignores ``params`` and advances the count by one per call.
+
+    Raises
+    ------
+    ValueError
+        If ``learning_rate`` is a constant and not positive. A schedule
+        is not checked, since its values are unknown until it is called.
     """
     if not callable(learning_rate) and learning_rate <= 0.0:
         raise ValueError(

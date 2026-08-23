@@ -22,11 +22,9 @@ information scores about the fraction of records that are positive, so
 average precision is only interpretable against that number, and it moves
 between datasets for reasons that have nothing to do with the model.
 
-Ties are ordered by NumPy's default sort, which is deterministic but not
-stable. Runs of equal scores therefore resolve the same way every call
-and in no particular relation to the input order, and both the curve and
-its area depend on where the positives land inside such a run — a model
-that emits few distinct probabilities is the case to watch.
+Both the curve and its area depend on how runs of equal scores are
+ordered; `dimma.metrics._ranked` owns that tie order and the argument
+for it.
 """
 
 from __future__ import annotations
@@ -47,36 +45,46 @@ class PrecisionRecallCurve(NamedTuple):
     flat wherever a negative is passed, precision drops there and climbs
     back at the next positive — and the sawtooth is the curve rather than
     noise in it.
+
+    Attributes
+    ----------
+    precision : np.ndarray of shape (n,), float in [0, 1]
+        Positives at or above each cut, over the number of records at or
+        above that cut.
+    recall : np.ndarray of shape (n,), float in [0, 1]
+        Positives at or above each cut, over all positives.
+    average_precision : float in [0, 1]
+        Precision averaged over the positives: the area under the curve.
     """
 
     precision: np.ndarray
-    """``(n,)`` positives among the records at or above each cut."""
     recall: np.ndarray
-    """``(n,)`` positives at or above each cut, over all positives."""
     average_precision: float
-    """Precision averaged over the positives: the area, in ``[0, 1]``."""
 
 
 def pr_curve(probs: object, labels: object) -> PrecisionRecallCurve:
-    """Precision and recall at every cut, and the area under them.
+    """Return precision and recall at every cut, and the area under them.
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
 
     Returns
     -------
     PrecisionRecallCurve
+        One point per record in descending score order, plus the average
+        precision over them.
 
     Raises
     ------
     ValueError
-        If the labels hold no positives. Recall and average precision
+        If the labels hold no positives — recall and average precision
         both divide by that count, and there is no ordering of a set
-        with nothing to find in it.
+        with nothing to find in it — or for any of the input problems
+        `dimma.metrics._inputs` validates.
     """
     ranked = rank_by_score(probs, labels)
     if ranked.positives == 0.0:

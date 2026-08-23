@@ -19,8 +19,10 @@ class TabularSplit(NamedTuple):
 
     Attributes
     ----------
-    x_train, y_train, x_test, y_test : jnp.ndarray
-        Features and labels, ``float32``, on the requested device.
+    x_train, x_test : jnp.ndarray, shape ``(n, d)``
+        Features, ``float32``, on the requested device.
+    y_train, y_test : jnp.ndarray, shape ``(n,)``
+        Labels, ``float32``, on the same device.
     metadata : dict
         Per-dataset extras. Loaders record here what they did to the
         data — the preprocessing chain, the statistics it was fitted
@@ -43,7 +45,34 @@ def arrays_to_split(
     device: str = "cpu",
     metadata: dict | None = None,
 ) -> TabularSplit:
-    """Move four pre-split NumPy arrays onto ``device``."""
+    """Move four pre-split NumPy arrays onto ``device``.
+
+    Parameters
+    ----------
+    x_train_np, x_test_np : np.ndarray, shape ``(n, d)``
+        Features, one record per row. Cast to the JAX default float
+        dtype, so pass ``float32``.
+    y_train_np, y_test_np : np.ndarray, shape ``(n,)``
+        Labels, aligned with the rows above.
+    device : str, default "cpu"
+        ``"cpu"``, ``"gpu"`` or ``"cuda"``, as `resolve_device` reads
+        them.
+    metadata : dict | None, default None
+        Recorded on the split as-is. ``None`` becomes ``{}``, so a split
+        always has the attribute.
+
+    Returns
+    -------
+    TabularSplit
+        The four arrays committed to one device, with ``metadata``.
+
+    Raises
+    ------
+    ValueError
+        If ``device`` is not one of the three names.
+    RuntimeError
+        If the requested backend has no devices.
+    """
     dev = resolve_device(device)
     return TabularSplit(
         x_train=jax.device_put(jnp.asarray(x_train_np), dev),
@@ -109,7 +138,37 @@ def arrays_to_sparse_split(
     device: str = "cpu",
     metadata: dict | None = None,
 ) -> SparseTabularSplit:
-    """Move six pre-split NumPy arrays onto ``device``. Indices int32."""
+    """Move six pre-split NumPy arrays onto ``device``.
+
+    Parameters
+    ----------
+    idx_train_np, idx_test_np : np.ndarray, shape ``(n, s)``
+        Coordinates into ``0..num_features-1``. Cast to ``int32``.
+    val_train_np, val_test_np : np.ndarray, shape ``(n, s)``
+        Values at those coordinates. Cast to ``float32``.
+    y_train_np, y_test_np : np.ndarray, shape ``(n,)``
+        Labels, aligned with the rows above.
+    num_features : int
+        The width the indices address.
+    device : str, default "cpu"
+        ``"cpu"``, ``"gpu"`` or ``"cuda"``, as `resolve_device` reads
+        them.
+    metadata : dict | None, default None
+        Recorded on the split as-is. ``None`` becomes ``{}``.
+
+    Returns
+    -------
+    SparseTabularSplit
+        The six arrays committed to one device, with the width and
+        ``metadata``.
+
+    Raises
+    ------
+    ValueError
+        If ``device`` is not one of the three names.
+    RuntimeError
+        If the requested backend has no devices.
+    """
     dev = resolve_device(device)
     idx_train = jnp.asarray(idx_train_np, dtype=jnp.int32)
     val_train = jnp.asarray(val_train_np, dtype=jnp.float32)

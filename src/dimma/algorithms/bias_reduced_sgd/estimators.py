@@ -44,8 +44,7 @@ __all__ = [
 
 
 class MeanEstimator(NamedTuple):
-    """One of Section 3's mean estimators, in the shape the four slots
-    of Algorithm 3 take.
+    """One of Section 3's mean estimators, in Algorithm 3's slot shape.
 
     Holds a function, so it is a *static* `jax.jit` argument and never a
     traced one: bind it outside the loop, as
@@ -101,6 +100,12 @@ def projection_estimator(
     MeanEstimator
         Closing over all three numbers, taking a mean, a key and a
         batch size.
+
+    Raises
+    ------
+    ValueError
+        If ``clip_norm`` is not positive, or if ``radius`` or
+        ``noise_multiplier`` is negative.
 
     Notes
     -----

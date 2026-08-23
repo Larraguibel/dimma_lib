@@ -1,9 +1,7 @@
 """Device selection from a friendly name.
 
 Lives here rather than in a ``utils`` package because ``datasets.base``
-is its only caller: `core`'s membership rule says a thing with one
-consumer belongs with that consumer. Promote it when a second one shows
-up.
+is its only caller; the membership rule is `dimma.core`'s, per ADR-0001.
 """
 
 from __future__ import annotations
@@ -16,24 +14,11 @@ _ALIASES = {"cpu": "cpu", "gpu": "gpu", "cuda": "gpu"}
 def resolve_device(name: str) -> jax.Device:
     """Return the first ``jax.Device`` matching ``name``.
 
-    Parameters
-    ----------
-    name : str
-        ``"cpu"``, ``"gpu"``, or ``"cuda"`` (case-insensitive). ``"cuda"``
-        is an alias for ``"gpu"`` — JAX's backend is named ``gpu``
-        whatever the underlying driver.
-
-    Returns
-    -------
-    jax.Device
-
-    Raises
-    ------
-    ValueError
-        If ``name`` is not one of the three.
-    RuntimeError
-        If the requested backend has no devices, e.g. ``"cuda"`` on a
-        machine whose jaxlib is CPU-only.
+    ``name`` is ``"cpu"``, ``"gpu"`` or ``"cuda"``, case-insensitive,
+    and ``"cuda"`` is an alias for ``"gpu"`` — JAX's backend is named
+    ``gpu`` whatever the driver. Raises ``ValueError`` on any other name
+    and ``RuntimeError`` when the backend has no devices, e.g. ``"cuda"``
+    on a CPU-only jaxlib.
     """
     key = name.lower()
     if key not in _ALIASES:

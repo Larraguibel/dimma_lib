@@ -17,22 +17,21 @@ one, and a caller releasing the whole and both halves releases three
 quantities from a single draw, which amplify jointly and not three
 times over. The amplification statement that covers it is Lemma 5.3's,
 and it belongs with the accountant that uses it,
-`dimma.accounting.bias_reduced_sgd`. This module states what it
-samples; it computes no privacy budget.
+`dimma.accounting.bias_reduced_sgd`. This module states what it samples
+and computes no privacy budget; ADR-0003.
 
-ADR-0007's raise-or-truncate question does not arise here.
-``2 ** (max_scale(n) + 1) == 2 ** floor(log2 n) <= n`` for every
-``n >= 2``, so an oversize draw is impossible: there is no padding cap
-to exceed and nothing to raise about. What carries over is the ADR's
-principle, that a draw is never reshaped to fit a memory bound. The
-bound here is `max_scale` itself, passed lower: that runs a different
-law over the scale, which is analysable as such, rather than cutting
+ADR-0007's raise-or-truncate question does not arise here: an oversize
+draw is impossible, since ``2 ** (max_scale(n) + 1) <= n`` for every
+``n >= 2``, so there is no padding cap to exceed. Passing a lower
+`max_scale` runs a different law over the scale rather than cutting
 down batches the law has already sized.
 
-Reference: B. Ghazi, C. Guzman, P. Kamath, R. Kumar, P. Manurangsi,
-"Differentially Private Optimization with Sparse Gradients", NeurIPS
-2024. Definition 5.1 is the scale law; Section 5 is where the draw is
-consumed.
+References
+----------
+.. [1] B. Ghazi, C. Guzman, P. Kamath, R. Kumar, P. Manurangsi,
+   "Differentially Private Optimization with Sparse Gradients",
+   NeurIPS 2024. Definition 5.1 is the scale law; Section 5 is where
+   the draw is consumed.
 """
 
 from __future__ import annotations
@@ -77,11 +76,20 @@ class DyadicDraw(NamedTuple):
 
 
 def max_scale(n: int) -> int:
-    """Definition 5.1's ``M = floor(log2 n) - 1``.
+    """Return Definition 5.1's ``M = floor(log2 n) - 1``.
 
-    Computed as ``n.bit_length() - 2``, which is exact for every ``n``.
-    ``math.log2`` is not: at large powers of two its result rounds the
-    wrong way and the floor comes back one too low or one too high.
+    Parameters
+    ----------
+    n : int >= 2
+        Training set size.
+
+    Returns
+    -------
+    int
+        The largest scale the ladder admits for ``n``. Computed as
+        ``n.bit_length() - 2``, which is exact for every ``n``;
+        ``math.log2`` is not, since at large powers of two its result
+        rounds the wrong way and the floor comes back one out.
 
     Raises
     ------
@@ -99,19 +107,29 @@ def max_scale(n: int) -> int:
 
 
 def scale_probabilities(max_scale: int) -> np.ndarray:
-    """Definition 5.1's pmf over ``0..max_scale``.
+    """Return Definition 5.1's pmf over ``0..max_scale``.
 
-    ``p_k = C_M / 2 ** k`` with ``C_M = 1 / (2 * (1 - 2 ** -(M + 1)))``,
-    the normalizer that makes the truncated geometric law sum to one.
-    Returns length ``max_scale + 1``, in ``float64``.
+    Parameters
+    ----------
+    max_scale : int >= 0
+        ``M``. Usually :func:`max_scale` of the training set size.
 
-    Read by the debiasing weight ``1 / p_N`` as well as by
-    :func:`draw_scale`, so the two cannot disagree about the law.
+    Returns
+    -------
+    numpy.ndarray, shape ``(max_scale + 1,)``, ``float64``
+        ``p_k = C_M / 2 ** k`` with
+        ``C_M = 1 / (2 * (1 - 2 ** -(M + 1)))``, the normalizer that
+        makes the truncated geometric law sum to one.
 
     Raises
     ------
     ValueError
         If ``max_scale`` is negative.
+
+    Notes
+    -----
+    Read by the debiasing weight ``1 / p_N`` as well as by
+    :func:`draw_scale`, so the two cannot disagree about the law.
     """
     if max_scale < 0:
         raise ValueError(

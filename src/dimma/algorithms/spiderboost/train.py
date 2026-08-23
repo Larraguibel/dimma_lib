@@ -17,9 +17,7 @@ before the loop - it is host-side control flow, drawn from ``steps``
 alone and so costing no budget, and a third stream would break the
 two-seed contract.
 
-No metrics. Evaluating on the training data is another access to it,
-costing budget Algorithm 2 does not account for, so that call belongs
-at the call site where it is visible.
+No metrics; see ADR-0006.
 """
 
 from __future__ import annotations
@@ -72,6 +70,9 @@ def train(
         once, outside the loop, so each branch traces a single time.
         The same loss DP-SGD would be given, which is what lets one
         model be run under both.
+    params
+        ``w_0``: the initial parameters, a pytree of float arrays. Not
+        mutated.
     optimizer
         Algorithm 2's line 16 is descent at a constant step size, which
         is ``updates.sgd(eta)``. Theorem B.3 fixes ``eta = 1/(2 L_1)``,
@@ -80,6 +81,9 @@ def train(
         guarantee, and it changes how far the parameters move per step,
         which feeds the variation branch's noise scale - so it changes
         the mechanism, not only what can be proved about it.
+    x, y
+        The training set, leading axis ``n`` on both. ``n`` is the
+        denominator of both branches' sampling rates.
     key, rng
         The noise and sampling streams. Pass one ``rng`` for the whole
         run: independent draws are what the sampling assumption means.
@@ -128,13 +132,23 @@ def train(
         gradient estimate was ever taken at it, so the theorem says
         nothing about it. Do not report it as the algorithm's result.
 
-    No optimizer state is returned. Continuing a run would need the
-    estimator's state, the phase position and the noise key as well, and
-    returning a subset invites a caller to resume in a way that replays
-    the noise stream.
+    Raises
+    ------
+    ValueError
+        If ``steps`` is below 2, if ``anchor_interval`` is below 1, or
+        if either expected batch size is outside ``(0, len(x)]``.
+    RuntimeError
+        Propagated from :func:`poisson.subsample` if a draw exceeds its
+        branch's cap. Raise the cap instead of catching it; ADR-0007
+        records why.
 
     Notes
     -----
+    No optimizer state is returned, as in
+    `dimma.algorithms.dp_sgd.train`. Continuing a run here would
+    further need the estimator's state and the phase position, so a
+    subset would be worse than nothing.
+
     No privacy cost is returned, and none is claimed. The two branches
     are different mechanisms and compose separately: the anchor runs
     ``ceil(steps / anchor_interval)`` times at rate
@@ -145,17 +159,6 @@ def train(
     cannot check is stated in the package docstring: the Lipschitz and
     smoothness constants the scales were calibrated against, and the
     step size.
-
-    Raises
-    ------
-    ValueError
-        If ``steps`` is below 2, if ``anchor_interval`` is below 1, or
-        if either expected batch size is outside ``(0, len(x)]``.
-    RuntimeError
-        Propagated from :func:`poisson.subsample` if a draw exceeds its
-        branch's cap. Catching it would mean truncating or redrawing,
-        and both change the mechanism the accounting assumes. Raise the
-        cap instead.
     """
     n = x.shape[0]
     if steps < 2:

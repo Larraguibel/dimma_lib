@@ -17,9 +17,12 @@ branch draws at rate ``b2/n`` and releases a mean gradient
 *difference*. Over ``steps`` releases that is
 ``ceil(steps / anchor_interval)`` of the first and the rest of the
 second. The branch sequence is ``t % anchor_interval``, fixed before
-the run from ``steps`` and the interval alone, so composition across
-the two is adaptive but sound - each branch's privacy curve is settled
-in advance.
+the run from ``steps`` and the interval alone, so the two schedules
+compose *non-adaptively* with respect to each other - which is what
+`sampling.composed_poisson_gaussian_epsilon` states its order
+independence for. What is chosen adaptively is the variation branch's
+noise *magnitude*, a function of prior releases only; ADR-0010 records
+why that is sound.
 
 Preconditions this cannot check
 -------------------------------
@@ -83,10 +86,24 @@ def release_counts(steps: int, anchor_interval: int) -> tuple[int, int]:
     approximate: this is what the accountant composes over, and a
     mis-count is a mis-stated guarantee rather than a rounding.
 
+    Parameters
+    ----------
+    steps : int >= 2
+        The run's length in optimizer updates, which for this algorithm
+        is also its length in releases.
+    anchor_interval : int >= 1
+        Algorithm 2's phase size ``q``, in steps. An interval of 1 makes
+        every step an anchor.
+
     Returns
     -------
     anchor_releases, variation_releases : int
-        Summing to ``steps``.
+        Both non-negative and summing to ``steps``.
+
+    Raises
+    ------
+    ValueError
+        If ``steps`` is below 2 or ``anchor_interval`` is below 1.
     """
     _check_schedule(steps, anchor_interval)
     anchors = math.ceil(steps / anchor_interval)
@@ -124,10 +141,12 @@ def noise_scales(*, lipschitz_constant: float, smoothness_constant: float,
     target_epsilon, target_delta
         The budget to calibrate against. Met, not approached: epsilon
         at the returned scales is at or just under ``target_epsilon``.
-    steps, anchor_interval, anchor_expected_batch_size,
-    variation_expected_batch_size
-        As `dimma.algorithms.spiderboost.train` takes them, and they
-        must be the values the run will use.
+    steps, anchor_interval
+        The run's schedule, as `dimma.algorithms.spiderboost.train`
+        takes it. Must be the values the run will use.
+    anchor_expected_batch_size, variation_expected_batch_size
+        Algorithm 2's ``b_1`` and ``b_2``, each at most
+        ``dataset_size``. Must be the values the run will use.
     dataset_size
         ``n``, which with the batch sizes fixes both sampling rates.
     method
@@ -205,9 +224,13 @@ def epsilon(*, lipschitz_constant: float, smoothness_constant: float,
         disagree with what ran.
     target_delta
         The ``delta`` at which epsilon is read off.
-    steps, anchor_interval, anchor_expected_batch_size,
-    variation_expected_batch_size, dataset_size
-        The run's configuration, as `noise_scales` takes them.
+    steps, anchor_interval
+        The run's schedule, as `noise_scales` takes it.
+    anchor_expected_batch_size, variation_expected_batch_size
+        The two branches' ``b_1`` and ``b_2``, as `noise_scales` takes
+        them.
+    dataset_size
+        ``n``, which with the batch sizes fixes both sampling rates.
     method
         ``"rdp"`` (default) or ``"pld"``; ADR-0011 records why.
     accept_misaligned_scales
@@ -300,12 +323,9 @@ def _releases_from_multiplier(*, steps: int, anchor_interval: int,
                               anchor_expected_batch_size: int,
                               variation_expected_batch_size: int,
                               dataset_size: int):
-    """Build the ``multiplier -> two schedules`` map both directions use.
-
-    Returning the builder rather than the schedules keeps the one place
-    that knows Algorithm 2's shape from being written twice, and it is
-    the form `sampling.calibrate_noise_multiplier` takes.
-    """
+    """Build the ``multiplier -> two schedules`` map both directions
+    use, which is also the form `sampling.calibrate_noise_multiplier`
+    takes."""
     _check_schedule(steps, anchor_interval)
     if dataset_size <= 0:
         raise ValueError(f"dataset_size={dataset_size} must be positive.")

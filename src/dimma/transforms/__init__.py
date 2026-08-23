@@ -9,10 +9,8 @@ algorithm, and an algorithm can stack more than one. A change only one
 algorithm could ever make is that algorithm's, and lives in its
 package.
 
-A transform makes no privacy claim. Whether applying one is free
-post-processing is a statement about the mechanism the run releases
-from, and belongs where that mechanism's accounting is stated — not
-here, and not in a property the transform carries around.
+A transform makes no privacy claim; see CONTEXT.md's *Transform* entry
+and ADR-0014.
 
 The layer applies; the geometry lives in `core`. Whether an
 *algorithm's own step* consumes a transform by name from here, or

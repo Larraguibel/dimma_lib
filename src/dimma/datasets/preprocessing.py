@@ -16,11 +16,8 @@ def cap_feature_norms(
 ) -> tuple[np.ndarray, float]:
     """Rescale each row to ``l_2`` norm at most ``bound``. Per record.
 
-    Reads no aggregate on the way to the result: row ``i`` of the output
-    depends on row ``i`` of ``x`` and on ``bound``. What it does read
-    across records is whether any row's norm came out non-finite, which
-    it warns about without quantifying; ADR-0012 records why that one
-    exception is drawn, and how narrowly.
+    Row ``i`` of the output depends on row ``i`` of ``x`` and on
+    ``bound``, and on nothing else. See ADR-0012.
 
     Parameters
     ----------
@@ -36,6 +33,20 @@ def cap_feature_norms(
     bound : float
         The bound just enforced, so that the number reaches an
         accountant from the operation that made it true.
+
+    Raises
+    ------
+    ValueError
+        If ``bound`` is not finite and positive.
+
+    Warns
+    -----
+    UserWarning
+        If any row's norm is not finite, so that ``bound`` is not
+        enforced for it and no constant derived from ``bound`` bounds
+        this data. Existence only, never a count: ADR-0012 records why
+        that one data-dependent signal leaves here and how narrowly it
+        is drawn.
     """
     if not np.isfinite(bound) or bound <= 0.0:
         raise ValueError(f"bound={bound} must be finite and positive.")

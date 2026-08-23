@@ -17,7 +17,8 @@ applies to them, and that belongs in the import line.
     Not a mechanism at all. Ordinary epoch shuffling, for the
     non-private baselines; no amplification and nothing to account.
 
-Samplers state what they sample; they compute no privacy budget.
+Samplers state what they sample and compute no privacy budget;
+ADR-0003.
 """
 
 from dimma.core.sampling import dyadic, poisson, poisson_truncated, shuffled

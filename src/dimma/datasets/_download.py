@@ -30,11 +30,10 @@ def download_with_checksum(
 ) -> Path:
     """Download ``url`` to ``destination``, verifying its SHA256.
 
-    1. If ``destination`` exists and its digest matches, return it
-       without re-downloading.
-    2. If it exists and does not match, delete it and re-download.
-    3. Otherwise stream to ``destination`` + ``.partial``, verify, and
-       rename atomically.
+    Idempotent: on return ``destination`` holds bytes whose digest is
+    ``expected_sha256``, and a file already there with that digest is
+    left alone rather than fetched again. Nothing partial is ever left
+    at ``destination`` itself.
 
     Parameters
     ----------
@@ -44,8 +43,8 @@ def download_with_checksum(
         Final on-disk path. Its parent directory must already exist.
     expected_sha256 : str
         64-character hex digest, compared case-insensitively.
-    chunk_size : int, default 1 MiB
-        Streaming chunk size.
+    chunk_size : int, default 1048576
+        Streaming chunk size, in bytes.
 
     Returns
     -------

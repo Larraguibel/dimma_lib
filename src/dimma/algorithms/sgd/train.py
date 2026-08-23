@@ -8,9 +8,9 @@ would trace. Everything after the draw is one jitted call.
 One random stream. Nothing is noised, so there is no second seed to get
 wrong.
 
-No metrics. In DP-SGD that is a privacy rule; here it is comparability
-— a baseline reporting a training curve the private arm cannot would be
-a second difference between the two runs.
+No metrics. In DP-SGD that is a privacy rule (ADR-0006); here it is
+comparability — a baseline reporting a training curve the private arm
+cannot would be a second difference between the two runs.
 """
 
 from __future__ import annotations
@@ -45,9 +45,14 @@ def train(
         ``(params, x_single, y_single) -> scalar``, the same loss the
         private arm is given. Vectorized and averaged here once,
         outside the loop, so `jax.jit` traces a single time.
+    params
+        ``theta_0``: the initial parameters, a pytree of float arrays.
+        Not mutated.
     optimizer
         `updates.sgd(eta)`, or `updates.sgd(schedule)` for a
         step-dependent rate. Whatever the private arm gets — ADR-0002.
+    x, y
+        The training set, leading axis ``n`` on both.
     rng
         The sampling stream. Pass one generator for the whole run.
     steps
@@ -59,15 +64,20 @@ def train(
 
     Returns
     -------
-    params : Any
-
-    No optimizer state is returned, matching DP-SGD.
+    params : pytree
+        The trained parameters after ``steps`` updates, in the initial
+        parameters' structure and dtypes.
 
     Raises
     ------
     ValueError
         From :func:`shuffled.batches` if ``batch_size`` is outside
         ``(0, len(x)]``, before the first step.
+
+    Notes
+    -----
+    No optimizer state is returned, matching
+    `dimma.algorithms.dp_sgd.train`.
     """
     n = x.shape[0]
     grad_fn = gradients.batch_grads(per_sample_loss_fn)

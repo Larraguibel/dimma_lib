@@ -1,26 +1,17 @@
-"""Grouping predictions, which every calibration number is built on.
+"""The partition every calibration number in this package is built on.
 
-A reliability curve, an expected calibration error, and both
-decompositions in `dimma.metrics.decomposition` are one operation read
-four ways: partition the predictions, then compare the mean prediction
-in each group against the rate actually observed there. The partition is
-written once here, and which partition to take is a parameter rather
-than a constant, because it is the choice that moves the answer.
+Equal-mass is the default: predicted click probabilities pile up around
+the base rate, so equal-width bins drop most of the data into two or
+three, while equal-mass bins estimate every bin's observed rate to about
+the same precision.
 
-Equal-mass is the default. Predicted click probabilities pile up around
-the base rate and thin out fast on both sides, so equal-width bins spend
-most of their bins on stretches holding almost nothing and drop most of
-the data into two or three. Equal-mass bins hold the same count each,
-which also estimates every bin's observed rate to about the same
-precision — and the observed rate is the quantity being compared.
-
-Bins are a smoothing parameter, not a detail. Too few and a model that
-is badly calibrated within a bin looks calibrated, because the gap
-averages out inside the bin and never reaches the number. Too many and
-each observed rate is a mean over so few records that its own sampling
-noise dominates, which pushes every gap-based number upward whether the
-model deserves it or not. Report the count alongside anything computed
-from these.
+The bin count is a smoothing parameter and this module is where that
+argument lives; the callers cite it rather than restate it. Too few bins
+and a model badly calibrated within a bin looks calibrated, the gap
+averaging out before it reaches the number. Too many and each observed
+rate is a mean over so few records that its own sampling noise
+dominates, which pushes every gap-based number upward whether the model
+deserves it or not. Report the count alongside anything computed here.
 """
 
 from __future__ import annotations
@@ -41,20 +32,29 @@ class Bins(NamedTuple):
     arrays may be shorter than the ``n_bins`` asked for. Equal-mass
     binning drops them when ties collapse quantile edges; equal-width
     binning drops them wherever the predictions never went.
+
+    Attributes
+    ----------
+    index : np.ndarray of shape (n,), int
+        Bin each record fell in, indexing the ``(k,)`` arrays below.
+    count : np.ndarray of shape (k,), int
+        Records per bin. Never zero.
+    mean_predicted : np.ndarray of shape (k,), float in [0, 1]
+        Mean predicted probability in each bin.
+    mean_observed : np.ndarray of shape (k,), float in [0, 1]
+        Fraction of each bin that was actually positive.
+    lower : np.ndarray of shape (k,), float
+        Left edge of each bin.
+    upper : np.ndarray of shape (k,), float
+        Right edge of each bin.
     """
 
     index: np.ndarray
-    """``(n,)`` bin each record fell in, indexing the arrays below."""
     count: np.ndarray
-    """``(k,)`` records per bin."""
     mean_predicted: np.ndarray
-    """``(k,)`` mean predicted probability in each bin."""
     mean_observed: np.ndarray
-    """``(k,)`` fraction of each bin that was actually positive."""
     lower: np.ndarray
-    """``(k,)`` left edge of each bin."""
     upper: np.ndarray
-    """``(k,)`` right edge of each bin."""
 
     @property
     def weight(self) -> np.ndarray:
@@ -91,9 +91,9 @@ def bin_predictions(
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
     n_bins : int, default 15
         Requested bin count. The result may hold fewer, never more; see
@@ -108,12 +108,14 @@ def bin_predictions(
     Returns
     -------
     Bins
+        The surviving bins and their per-bin statistics, plus the bin
+        each record fell in. May hold fewer bins than were asked for.
 
     Raises
     ------
     ValueError
         If ``n_bins`` is below 1, if ``strategy`` is neither name, or
-        for any of the input problems `dimma.metrics` validates.
+        for any of the input problems `dimma.metrics._inputs` validates.
     """
     if n_bins < 1:
         raise ValueError(f"n_bins must be at least 1, got {n_bins}.")

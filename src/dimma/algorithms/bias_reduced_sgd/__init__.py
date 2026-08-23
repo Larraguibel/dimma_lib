@@ -93,12 +93,9 @@ number rather than a crash:
 - **the radius is the caller's number.** Pass a ``radius`` that
   actually contains the mean gradients, or the estimate is biased
   toward the origin by an amount no bound covers;
-- **the budget is small.** Lemma 5.3's amplification is stated for
-  ``eps <= 1``; a larger budget makes the per-step cost the accountant
-  charges an underestimate rather than an overestimate;
-- **``delta`` is below ``1 / n ** 2``**, which Lemma 5.5's
-  stopping-time bound assumes. Above it the privacy still holds and the
-  step-count bound does not.
+- **the budget is small**, and **``delta`` is below ``1 / n ** 2``**.
+  Both are the accountant's premises and are stated where the numbers
+  are made, in `dimma.accounting.bias_reduced_sgd`'s module docstring.
 
 Our words, not the paper's
 --------------------------

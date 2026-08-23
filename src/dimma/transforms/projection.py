@@ -13,10 +13,10 @@ wrapper serves all of them — the caller writes::
 
 and passes it to any `train`, none of which know it is there.
 
-Makes no privacy claim. Whether the projection is free in a given run
-is a statement about the mechanism it post-processes, stated where
-that run's accounting is stated. A projected update rule is also a
-departure from any paper whose rule does not project — Abadi et al.'s
+Why the seam rather than a loop argument is ADR-0014; what does and
+does not port from the paper's projection mechanism is ADR-0015. Makes
+no privacy claim (CONTEXT.md, *Transform*). A projected update rule is
+a departure from any paper whose rule does not project — Abadi et al.'s
 Algorithm 1 does not — and, as with any other choice at stage 7, that
 departure is the caller's to make and to report.
 """
@@ -69,16 +69,21 @@ def l1_projected(
         wrapper adds no state of its own, so a schedule keeps indexing
         the same count.
 
+    Raises
+    ------
+    ValueError
+        Here, if ``radius`` is a concrete negative number. And from the
+        returned ``update``, if it is called with ``params=None``: the
+        projection needs the current point, so a bare
+        ``update(estimate, state)`` raises rather than silently
+        skipping it. `updates.apply` always passes the parameters.
+
     Notes
     -----
     The constraint holds to floating-point round-off rather than
     bit-exactly: the seam traffics in increments, so the projected
     point is re-derived as ``projected - params`` and added back, and
     each of those rounds once.
-
-    The wrapped ``update`` requires the current parameters.
-    `updates.apply` always passes them; a bare ``update(estimate,
-    state)`` call raises rather than silently skipping the projection.
     """
     _reject_negative_concrete(radius)
 
@@ -109,18 +114,11 @@ def l1_projected_estimate(
     which projects the point a step produces and leaves the estimate
     alone.
 
-    Applied to a privatized gradient this is Ghazi, Guzmán, Kamath,
-    Kumar and Manurangsi's projection step (*Differentially Private
-    Optimization with Sparse Gradients*, 2024, Algorithm 1 and
-    Section 5): their radius is ``L√s`` for records ``l_2``-bounded by
-    ``L`` and ``s``-sparse, and their Lemma 3.1 is the reason to want
-    it — the signal is sparse, the noise is dense, and the projection
-    strips most of the noise. Only the projection step lands here:
-    projecting an estimate biases it, and Section 5's own contribution
-    is the machinery that repairs that bias, which this wrapper does
-    not carry. The noise itself belongs to whatever
-    mechanism released the estimate, not to this wrapper, which claims
-    nothing (see the module docstring).
+    Applied to a privatized gradient this is Ghazi et al.'s projection
+    step, whose radius is ``L√s`` for records ``l_2``-bounded by ``L``
+    and ``s``-sparse. Only that step lands here: projecting an estimate
+    biases it, and the machinery repairing that bias is not carried by
+    this wrapper. ADR-0015.
 
     Parameters
     ----------
@@ -139,11 +137,24 @@ def l1_projected_estimate(
         wrapper adds no state of its own, so a schedule keeps indexing
         the same count.
 
+    Raises
+    ------
+    ValueError
+        If ``radius`` is a concrete negative number. The returned
+        ``update`` raises nothing of its own.
+
     Notes
     -----
     Projecting the estimate reads nothing from the parameters, so
     unlike `l1_projected` a bare ``update(estimate, state)`` call
     works; ``params`` is passed through to the wrapped rule untouched.
+
+    References
+    ----------
+    .. [1] B. Ghazi, C. Guzmán, P. Kamath, R. Kumar, P. Manurangsi,
+       "Differentially Private Optimization with Sparse Gradients",
+       NeurIPS 2024. Algorithm 1 and Section 5; Lemma 3.1 is the
+       denoising bound that motivates projecting the estimate.
     """
     _reject_negative_concrete(radius)
 

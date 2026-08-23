@@ -40,19 +40,29 @@ _INIT_STD = 0.01
 def init_params(key: jax.Array, num_features: int) -> dict:
     """Initialise parameters for a ``num_features``-dimensional input.
 
-    Returns ``{"w": (num_features,), "b": ()}``, weights drawn from a
-    Gaussian of scale ``_INIT_STD`` and the bias at zero.
+    Parameters
+    ----------
+    key : jax.Array
+        A PRNG key, consumed by the weight draw.
+    num_features : int > 0
+        ``d``, the width of the feature vector :func:`forward` takes.
+
+    Returns
+    -------
+    dict
+        ``{"w": (num_features,), "b": ()}``, the weights drawn from
+        ``N(0, 0.01 ** 2)`` (``_INIT_STD``) and the bias at zero.
     """
     w = jax.random.normal(key, (num_features,)) * _INIT_STD
     return {"w": w, "b": jnp.array(0.0)}
 
 
 def forward(params: dict, x: jax.Array) -> jax.Array:
-    """The logit for a **single** example. ``vmap`` it for a batch.
+    """Return the logit for a **single** example. ``vmap`` it for a batch.
 
     Parameters
     ----------
-    params
+    params : dict, ``{"w": (d,), "b": ()}``
         Pytree as returned by :func:`init_params`.
     x : jax.Array, shape ``(d,)``
         One feature vector.
@@ -66,7 +76,7 @@ def forward(params: dict, x: jax.Array) -> jax.Array:
 
 
 def forward_sparse(params: dict, idx: jax.Array, val: jax.Array) -> jax.Array:
-    """The logit for a **single** example held as index/value pairs.
+    """Return the logit for a **single** example held as index/value pairs.
 
     Computes exactly what :func:`forward` computes on the dense row the
     pair implies - zeros everywhere except ``val[k]`` at ``idx[k]`` -
@@ -76,7 +86,7 @@ def forward_sparse(params: dict, idx: jax.Array, val: jax.Array) -> jax.Array:
 
     Parameters
     ----------
-    params
+    params : dict, ``{"w": (d,), "b": ()}``
         Pytree as returned by :func:`init_params`, whose ``w`` is
         ``(num_features,)`` - the width the indices address, not their
         count.

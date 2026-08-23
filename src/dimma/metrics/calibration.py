@@ -39,18 +39,26 @@ class ReliabilityCurve(NamedTuple):
     above it under-prediction. Weight anything read off it by `count` —
     the extreme bins are where a private run's damage shows first and
     also where the observed rate is estimated from the fewest records.
+
+    Attributes
+    ----------
+    mean_predicted : np.ndarray of shape (k,), float in [0, 1]
+        Mean predicted probability in each bin.
+    mean_observed : np.ndarray of shape (k,), float in [0, 1]
+        Fraction of each bin that was actually positive.
+    count : np.ndarray of shape (k,), int
+        Records per bin. Never zero: empty bins are dropped.
+    lower : np.ndarray of shape (k,), float
+        Left edge of each bin.
+    upper : np.ndarray of shape (k,), float
+        Right edge of each bin.
     """
 
     mean_predicted: np.ndarray
-    """``(k,)`` mean predicted probability in each bin."""
     mean_observed: np.ndarray
-    """``(k,)`` fraction of each bin that was actually positive."""
     count: np.ndarray
-    """``(k,)`` records per bin. Never zero: empty bins are dropped."""
     lower: np.ndarray
-    """``(k,)`` left edge of each bin."""
     upper: np.ndarray
-    """``(k,)`` right edge of each bin."""
 
     @property
     def gap(self) -> np.ndarray:
@@ -68,13 +76,14 @@ def reliability_curve(
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
     n_bins : int, default 15
         Requested bin count; the result may hold fewer. It is a
-        smoothing parameter and `dimma.metrics` records what it trades.
+        smoothing parameter and `dimma.metrics._binning` records what it
+        trades.
     strategy : {"equal_mass", "equal_width"}, default "equal_mass"
         ``"equal_mass"`` cuts at quantiles, ``"equal_width"`` cuts
         ``[0, 1]`` evenly. Equal-width is the classic diagram and the
@@ -83,6 +92,14 @@ def reliability_curve(
     Returns
     -------
     ReliabilityCurve
+        One point per surviving bin: what was predicted there, what was
+        observed, how many records, and the bin's edges.
+
+    Raises
+    ------
+    ValueError
+        If ``n_bins`` is below 1, if ``strategy`` is neither name, or
+        for any of the input problems `dimma.metrics._inputs` validates.
     """
     bins = bin_predictions(probs, labels, n_bins=n_bins, strategy=strategy)
     return ReliabilityCurve(
@@ -100,7 +117,7 @@ def expected_calibration_error(
     n_bins: int = 15,
     strategy: Strategy = "equal_mass",
 ) -> float:
-    """Mean absolute calibration gap, weighted by bin occupancy.
+    """Return the mean absolute calibration gap, weighted by bin occupancy.
 
     ``sum_k (n_k / n) * |predicted_k - observed_k|`` — the reliability
     curve's distance from the diagonal, collapsed to one number so a
@@ -119,9 +136,9 @@ def expected_calibration_error(
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
     n_bins : int, default 15
         Requested bin count; the result may use fewer.
@@ -132,6 +149,12 @@ def expected_calibration_error(
     -------
     float
         In ``[0, 1]``. Lower is better.
+
+    Raises
+    ------
+    ValueError
+        If ``n_bins`` is below 1, if ``strategy`` is neither name, or
+        for any of the input problems `dimma.metrics._inputs` validates.
     """
     bins: Bins = bin_predictions(
         probs, labels, n_bins=n_bins, strategy=strategy
@@ -141,31 +164,40 @@ def expected_calibration_error(
 
 
 def calibration_ratio(probs: object, labels: object) -> float:
-    """Observed positives over predicted positives. 1.0 is calibrated.
+    """Return observed positives over predicted ones. 1.0 is calibrated.
 
-    The aggregate the ads literature reports, and the one with a direct
-    reading: 0.9 means the model claims about 11% more clicks than
+    Reads directly: 0.9 means the model claims about 11% more clicks than
     happened, and a bid built on it overpays by roughly that much.
 
-    It is a single ratio over the whole set, so it detects a uniform
-    shift and nothing finer. A model that over-predicts on half the
-    records and under-predicts by as much on the other half scores
-    exactly 1.0 here while being wrong everywhere, which is what
-    `reliability_curve` is for. Cheap enough to watch every epoch;
-    not enough on its own.
+    One ratio over the whole set, so it detects a uniform shift and
+    nothing finer — the module docstring says what that misses and which
+    of these three catches it. Cheap enough to watch every epoch; not
+    enough on its own.
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-    labels
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
+
+    Returns
+    -------
+    float
+        ``>= 0``. Below 1.0 the model over-predicts, above it
+        under-predicts, and 1.0 is calibrated in aggregate.
 
     Raises
     ------
     ValueError
         If the predicted probabilities sum to zero, leaving nothing to
-        divide by.
+        divide by, or for any of the input problems
+        `dimma.metrics._inputs` validates.
+
+    References
+    ----------
+    .. [1] He et al., "Practical Lessons from Predicting Clicks on Ads at
+       Facebook", ADKDD 2014.
     """
     p, y = as_probabilities_and_labels(probs, labels)
     expected = float(np.sum(p))

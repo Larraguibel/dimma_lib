@@ -1,15 +1,8 @@
 """One coercion and one set of checks, shared by every metric here.
 
-Metrics are handed whatever the caller has — a JAX array off the device,
-a pandas column, a Python list — and every function in this package
-needs the same three things from it: float64, one dimension, and the
-range each argument is supposed to occupy.
-
-float64 rather than the float32 the model trains in. These are sums over
-a few hundred thousand records, and a float32 accumulator loses the last
-digits of exactly the quantity the whole exercise is about: a
-calibration gap is a small difference between two numbers near the base
-rate, and it is read at the fourth decimal.
+float64 rather than the float32 the model trains in: over a few hundred
+thousand records a float32 accumulator loses the last digits of a
+calibration gap, which is read at the fourth decimal.
 """
 
 from __future__ import annotations
@@ -24,20 +17,28 @@ def as_probabilities_and_labels(
 
     Parameters
     ----------
-    probs
+    probs : array-like of shape (n,)
         Predicted probabilities of the positive class, in ``[0, 1]``.
-        Note that these are probabilities, not the logits the model
-        emits; `dimma.metrics.scoring` says why the distinction is
-        load-bearing and where the stable route is.
-    labels
+        Probabilities, not the logits the model emits;
+        `dimma.metrics.scoring` says where the stable route is.
+    labels : array-like of shape (n,)
         Binary labels in ``{0, 1}``.
+
+    Returns
+    -------
+    probs : np.ndarray of shape (n,), float64
+        ``probs`` coerced, in ``[0, 1]``.
+    labels : np.ndarray of shape (n,), float64
+        ``labels`` coerced, each exactly 0.0 or 1.0.
 
     Raises
     ------
     ValueError
         If the shapes disagree, either argument is not one-dimensional
-        or is empty, either holds a non-finite value, ``probs`` leaves
-        ``[0, 1]``, or ``labels`` holds a value other than 0 or 1.
+        or is empty, ``probs`` holds a non-finite value or leaves
+        ``[0, 1]``, or ``labels`` holds a value other than 0 or 1. A
+        non-finite label is caught by that last check, not by a
+        finiteness one: only ``probs`` is tested for finiteness.
     """
     p = np.asarray(probs, dtype=np.float64)
     y = np.asarray(labels, dtype=np.float64)
@@ -73,17 +74,10 @@ def as_probabilities_and_labels(
 
 
 def base_rate_entropy(base_rate: float) -> float:
-    """Binary entropy of the base rate, in nats.
+    """Return the binary entropy of the base rate, in nats.
 
-    The uncertainty no model can remove, and the denominator of
-    `dimma.metrics.scoring.normalized_entropy`.
-
-    Raises
-    ------
-    ValueError
-        If the base rate is 0 or 1. Entropy is then zero, every model
-        scores a log loss of zero on a constant label, and the
-        normalization it anchors divides by nothing.
+    Raises ``ValueError`` on a base rate of 0 or 1: the entropy is then
+    zero and the normalization it anchors divides by nothing.
     """
     if base_rate <= 0.0 or base_rate >= 1.0:
         raise ValueError(
