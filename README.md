@@ -32,7 +32,7 @@ A non-private method is the same pipeline with stages 4 and 6 dropped, stage 3 c
 
 dimma covers four fronts, all sharing the pipeline above.
 
-**Non-classical DP optimizers.** The primary front, and the reason the library exists: differentially private methods that are not classical DP-SGD — variance-reduced, second-order, sparsity-aware, and others as they are implemented. Private SpiderBoost (Arora et al., ICML 2023) is the first.
+**Non-classical DP optimizers.** The primary front, and the reason the library exists: differentially private methods that are not classical DP-SGD — variance-reduced, second-order, sparsity-aware, and others as they are implemented. Private SpiderBoost (Arora et al., ICML 2023) is the first; bias-reduced sparse SGD (Ghazi et al., NeurIPS 2024) is the second.
 
 **Classical DP-SGD.** It is the reference every non-classical method is measured against, so it gets the same primitives, the same tests, and the same documentation as anything else.
 
@@ -67,15 +67,21 @@ and the algorithms never import the models.
 
 ## Layout
 
-`core`, the dataset loaders, the reference model, the first two algorithms and
-the first baseline; the rest is being ported in.
+`core`, the dataset loaders, the reference model, the first three algorithms
+and the first baseline; the rest is being ported in.
 
 ```
 src/dimma/
 ├── accounting/              where the privacy claims live
+│   ├── bias_reduced_sgd.py  Theorem A.4's (ε, δ)-filter, in closed form
 │   ├── lipschitz.py         L₀, L₁ and the step size, from an enforced bound
-│   └── sampling.py          subsampled-Gaussian ε, via dp-accounting
+│   ├── sampling.py          subsampled-Gaussian ε, via dp-accounting
+│   └── spiderboost.py       two subsampled Gaussians, composed
 ├── algorithms/              one package per algorithm
+│   ├── bias_reduced_sgd/     bias-reduced sparse SGD (Ghazi et al., 2024)
+│   │   ├── estimators.py       the inner mean estimator, behind a seam
+│   │   ├── step.py             two mechanisms; the debiased combine
+│   │   └── train.py            the loop the privacy filter stops
 │   ├── dp_sgd/               classical DP-SGD (Abadi et al., 2016)
 │   │   ├── step.py             one iteration; the privatized gradient
 │   │   └── train.py            the loop, and stage 1
@@ -87,6 +93,7 @@ src/dimma/
 │       └── train.py            the loop, stage 1, and the output rule
 ├── core/                    the pipeline stages
 │   ├── sampling/            stage 1 — one module per sampler
+│   │   ├── dyadic.py          a fixed-size draw at a TGeom-drawn scale
 │   │   ├── poisson.py         the standard one; raises on an oversize draw
 │   │   ├── poisson_truncated.py   modified mechanism, unaccounted
 │   │   └── shuffled.py        ordinary epochs; not a mechanism at all
