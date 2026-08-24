@@ -2,8 +2,8 @@
 
 Executed runs live in `notebooks/` — per-algorithm hyperparameter tuning
 under `tuning/`, head-to-head comparisons under a shared protocol under
-`comparisons/`. Notebooks are numbered globally and cited by number; this
-page collects what they found. The dataset throughout is Criteo click
+`comparisons/`. This page cites each by its repo path and collects what
+they found. The dataset throughout is Criteo click
 prediction (1M rows: 800,000 train, 200,000 test), with logistic
 regression as the model.
 
@@ -38,24 +38,36 @@ training split, which is the standard benchmark convention and *not* a
 private operation; the hyperparameter searches are likewise unaccounted.
 Every notebook states this next to its ε rather than absorbing it.
 
-## Notebook 01 — DP-SGD alone, over its grid
+## The DP-SGD sweep — DP-SGD alone, over its grid
 
-`notebooks/tuning/01-dp-sgd-on-criteo.ipynb`. DP-SGD at ε = 3, δ = 1e-6
-over 10,000 steps, swept over clipping norm × learning rate at a fixed
-budget. The selected configuration reaches test log-loss 0.5140 (constant
-predictor: 0.5645) and PR-AUC 0.4460.
+`notebooks/tuning/dp-sgd-on-one-hot-criteo.ipynb`. DP-SGD at ε = 3,
+δ = 1e-6 over 10,000 steps, swept over clipping norm × learning rate at a
+fixed budget. The 26 categorical columns are one-hot at their native
+train-split cardinalities — 551,947 coordinates, each row carried as the
+39 it occupies — rather than collapsed to one relative-frequency float
+apiece. The selected configuration (`C = 5.0`, `lr = 0.3`) reaches test
+log-loss 0.4827 (constant predictor: 0.5645) and PR-AUC 0.5190
+(base-rate floor: 0.2520).
 
 Two findings shape everything downstream. **What costs utility at this
-budget is the clipping, not the noise**: a noiseless control — same
-clipping, same sampling, noise multiplier at zero for practical purposes —
-lands on the *same* log-loss and the same PR-AUC. And **the run is
-essentially finished by 2,000 steps**: the last 8,000 steps spend a third
-of the ε for a fourth-decimal improvement.
+budget is mostly the clipping**: moving `C` from 1.0 to 5.0 is worth 0.15
+of log-loss, where switching the noise off is worth 0.0044 — a noiseless
+control (same clipping, same sampling, noise multiplier at zero for
+practical purposes) reaches 0.4783 and PR-AUC 0.5287. And **the run is
+not finished early**: PR-AUC climbs 0.5058 → 0.5190 between 3,000 and
+10,000 steps, so the third of the ε those steps spend is buying
+something.
 
-![DP-SGD on Criteo: log-loss, calibration, and recall against training steps](assets/nb01-tuning.png)
+Both of those read differently on the frequency encoding, where the
+noiseless control landed on the *same* scores as the private run and the
+last 8,000 steps moved only the fourth decimal. There are 551,947 weights
+here against 40, most of them touched by a small fraction of the rows, so
+the run has more to do and takes longer to do it.
+
+![DP-SGD on one-hot Criteo: log-loss, calibration, and recall against training steps](assets/dp-sgd-sweep-tuning.png)
 
 *Test log-loss, ECE, and recall against training steps (log scale), from
-notebook 01. The dotted line is the constant predictor.*
+the DP-SGD sweep. The dotted line is the constant predictor.*
 
 ## Notebook 02 — DP-SGD against non-private SGD
 

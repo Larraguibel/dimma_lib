@@ -173,7 +173,8 @@ from dimma.models.losses import per_sample_bce_loss
 ```
 
 Every executed comparison under `notebooks/` runs on this model:
-`notebooks/tuning/01-dp-sgd-on-criteo.ipynb`,
+`notebooks/tuning/dp-sgd-on-one-hot-criteo.ipynb` (through
+`forward_sparse`),
 `notebooks/comparisons/02-dp-sgd-vs-sgd-baseline-on-criteo.ipynb`,
 `notebooks/comparisons/04-dp-sgd-vs-its-projected-counterparts-on-criteo.ipynb`,
 and `notebooks/comparisons/05-spiderboost-vs-dp-sgd-on-criteo.ipynb`.
