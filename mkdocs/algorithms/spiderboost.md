@@ -103,6 +103,6 @@ comparison between two accounting methodologies.
 !!! note
 
     **Evaluated in**
-    `notebooks/comparisons/05-spiderboost-vs-dp-sgd-on-criteo.ipynb`,
+    `notebooks/comparisons/spiderboost-vs-dp-sgd-on-criteo.ipynb`,
     head to head with DP-SGD at ε = 3. The finding — a null, and an
     instructive one — is on the [evaluation page](../evaluation.md).

@@ -75,8 +75,8 @@ Two properties of the reported number are deliberate:
 
 !!! note
 
-    **Evaluated in** `notebooks/tuning/01-dp-sgd-on-criteo.ipynb` (alone,
+    **Evaluated in** `notebooks/tuning/dp-sgd-on-criteo.ipynb` (alone,
     over its hyperparameter grid) and
-    `notebooks/comparisons/02-dp-sgd-vs-sgd-baseline-on-criteo.ipynb`
+    `notebooks/comparisons/dp-sgd-vs-sgd-baseline-on-criteo.ipynb`
     (against the non-private baseline). Headline results are on the
     [evaluation page](../evaluation.md).

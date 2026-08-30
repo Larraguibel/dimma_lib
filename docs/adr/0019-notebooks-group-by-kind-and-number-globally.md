@@ -1,5 +1,11 @@
 # Notebooks are grouped by kind; their numbers stay global
 
+> **Superseded in part by ADR-0022.** The folder split below stands. The
+> numbering does not: notebook filenames carry no number, and a notebook is
+> cited by name. Everything this ADR says about numbers is kept as the record
+> of a decision that was made and then reversed, and describes no current
+> rule. Read ADR-0022 for what replaced it.
+
 `notebooks/` splits into three folders named for what a run is for — `tuning/`
 for one algorithm swept over its hyperparameters, `comparisons/` for two or more
 run head to head under a shared protocol, `explorations/` for one-off work. The
@@ -14,7 +20,7 @@ is an organization problem, and a folder solves it.
 
 Identity is the other question, and folders are the wrong instrument for it.
 Every reference to a notebook in this repository is by number — ADR-0016 pins
-metric parity to notebook 02 and contrasts it with notebook 01, a test class is
+metric parity to notebook 02 and contrasts it with notebook 01, a test class was
 called `TestNotebook02Parity`, issues name the notebook they ask for, and the
 notebooks cross-reference each other in prose. None of those references carry a
 path, and none would survive a renumber. So a number is a citation key:

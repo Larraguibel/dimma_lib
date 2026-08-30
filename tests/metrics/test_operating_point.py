@@ -121,8 +121,8 @@ class TestConfusionAt:
             confusion_at([0.5, 0.5], [1.0], 0.5)
 
 
-class TestNotebook02Parity:
-    """Values computed from notebook 02's own code, hardcoded here.
+class TestDpSgdVsSgdBaselineParity:
+    """Values computed from the DP-SGD-vs-SGD-baseline comparison's own code.
 
     The notebook is not imported or executed; these are the numbers its
     `best_f1_threshold` and `confusion_at` produce on the fixed inputs

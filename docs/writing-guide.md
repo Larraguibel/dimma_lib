@@ -54,7 +54,7 @@ outgrows the page — a genuinely separate concern with its own audience.
 ## 6. Cite the evaluating notebook
 
 Every algorithm page names the notebook that evaluates it, by repo path
-(e.g. `notebooks/comparisons/05-spiderboost-vs-dp-sgd-on-criteo.ipynb`).
+(e.g. `notebooks/comparisons/spiderboost-vs-dp-sgd-on-criteo.ipynb`).
 Notebooks are never rendered into the site. If the evaluation does not
 exist yet:
 

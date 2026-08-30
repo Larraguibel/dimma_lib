@@ -22,9 +22,10 @@ is admitted is the report: every comparison needs a headline confusion matrix
 at one named rule (validation F1, chosen per model, frozen before the test
 split is read), and both of dimma's algorithms reach for it, which is the
 admission test CONTEXT.md sets. Keeping it out did not keep it from being
-computed; it kept it from being tested. Notebook 01 and notebook 02 each
-hand-rolled a different implementation of the number that decides the
-comparison, and nothing in the suite would have noticed if one were wrong.
+computed; it kept it from being tested. The DP-SGD sweep and the
+DP-SGD-vs-SGD-baseline comparison each hand-rolled a different implementation
+of the number that decides the comparison, and nothing in the suite would have
+noticed if one were wrong.
 
 Two names stay barred, and not provisionally. ROC-AUC is not to be reported
 anywhere in the package or in the notebooks: Criteo click prediction has a base
@@ -53,11 +54,12 @@ threshold fitted on the split it is then reported on is a defect the library
 cannot see. That obligation sits with whoever reports the number, the same
 place ADR-0012 leaves the provenance of `R`.
 
-Parity is anchored to notebook 02. Its `pr_curve`, `best_f1_threshold` and
-`confusion_at` are the implementations the promoted functions reproduce, and
-the pinned tests hold their numbers. Notebook 01's `average_precision` spells
-the divisor differently and computes the arithmetically identical value, so
-promoting notebook 02's behaviour loses nothing notebook 01 had.
+Parity is anchored to the DP-SGD-vs-SGD-baseline comparison. Its `pr_curve`,
+`best_f1_threshold` and `confusion_at` are the implementations the promoted
+functions reproduce, and the pinned tests hold their numbers. The DP-SGD
+sweep's `average_precision` spells the divisor differently and computes the
+arithmetically identical value, so promoting the comparison's behaviour loses
+nothing the sweep had.
 
 One divergence is deliberate. On labels holding no positive the notebooks
 divide by zero, propagate `nan` and emit a runtime warning; `pr_curve` and
