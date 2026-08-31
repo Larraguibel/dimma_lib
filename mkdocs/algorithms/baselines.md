@@ -54,7 +54,7 @@ release-counting rule reaching zero, not an exception to it.
 !!! note
 
     **Evaluated in**
-    `notebooks/comparisons/02-dp-sgd-vs-sgd-baseline-on-criteo.ipynb`,
+    `notebooks/comparisons/dp-sgd-vs-sgd-baseline-on-criteo.ipynb`,
     as the anchor of the DP-SGD comparison. Every headline number in
     [the evaluation](../evaluation.md) is read as a distance to this
     baseline, not as an absolute.

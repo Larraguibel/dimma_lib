@@ -129,10 +129,11 @@ class TestTies:
 class TestNotebookParity:
     """The promoted function reproduces the notebooks' code exactly.
 
-    The expected numbers below were computed by running notebook 02's
-    `pr_curve` on this input, which includes a four-way tie at 0.5 with
-    positives and negatives inside it. They therefore pin the tie order
-    NumPy's default (non-stable) sort produces as well as the arithmetic.
+    The expected numbers below were computed by running the
+    DP-SGD-vs-SGD-baseline comparison's `pr_curve` on this input, which
+    includes a four-way tie at 0.5 with positives and negatives inside it.
+    They therefore pin the tie order NumPy's default (non-stable) sort
+    produces as well as the arithmetic.
     """
 
     PROBS = np.array([0.9, 0.1, 0.5, 0.5, 0.5, 0.8, 0.2, 0.5])

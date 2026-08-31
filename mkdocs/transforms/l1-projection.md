@@ -69,6 +69,6 @@ report.
 !!! note
 
     **Evaluated in**
-    `notebooks/comparisons/04-dp-sgd-vs-its-projected-counterparts-on-criteo.ipynb`
+    `notebooks/comparisons/dp-sgd-vs-its-projected-counterparts-on-criteo.ipynb`
     — DP-SGD against both wrappers, at matched ε. The two-sided finding is
     on the [evaluation page](../evaluation.md).
