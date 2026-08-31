@@ -1,11 +1,13 @@
 # A notebook's name is its citation key
 
-Notebook filenames carry no number. `notebooks/tuning/dp-sgd-on-criteo.ipynb`,
-not `01-dp-sgd-on-criteo.ipynb`. Prose cites a notebook by what it is — *the
-DP-SGD sweep*, *the SpiderBoost-vs-DP-SGD comparison* — and the citation carries
-the kind the folder carries: a notebook under `tuning/` is cited as a sweep, one
-under `comparisons/` as a comparison. Documentation outside `notebooks/` cites
-the repo path, which is `docs/writing-guide.md` rule 6 and is unchanged.
+Notebook filenames carry no number.
+`notebooks/comparisons/dp-sgd-vs-sgd-baseline-on-criteo.ipynb`, not
+`02-dp-sgd-vs-sgd-baseline-on-criteo.ipynb`. Prose cites a notebook by what it
+is — *the DP-SGD sweep*, *the SpiderBoost-vs-DP-SGD comparison* — and the
+citation carries the kind the folder carries: a notebook under `tuning/` is
+cited as a sweep, one under `comparisons/` as a comparison. Documentation
+outside `notebooks/` cites the repo path, which is `docs/writing-guide.md`
+rule 6 and is unchanged.
 
 This reverses the numbering half of ADR-0019. The folder split that ADR made
 stands; only the claim that identity needs a number goes.

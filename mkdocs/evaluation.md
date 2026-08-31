@@ -166,3 +166,42 @@ promise has read one of them wrong.
 *Test precision–recall, from the SpiderBoost-vs-DP-SGD comparison:
 the dashed SpiderBoost curve sits exactly on DP-SGD's across the whole
 range — the null finding in one image.*
+
+## What the categorical encoding costs
+
+`notebooks/comparisons/what-the-categorical-encoding-costs.ipynb`.
+Criteo's 26 categorical columns get one of three treatments — dropped,
+replaced by their train-split relative frequency, or one-hot at native
+cardinality — and each treatment is run twice, at its noiseless ceiling
+and at ε = 1, δ = 1e-7 over 3,000 steps. Same rows, same split seed, same
+model, loss, optimizer, step count, expected lot, accountant and
+selection rule throughout; each arm searches its own copy of one
+clipping-norm × learning-rate grid.
+
+| test | log-loss | ECE | PR-AUC |
+|---|---|---|---|
+| constant | 0.5645 | 0.0008 | 0.2520 |
+| numeric only, non-private | 0.5198 | 0.0187 | 0.4332 |
+| numeric only (ε = 1) | 0.5200 | 0.0198 | 0.4333 |
+| frequency, non-private | 0.5130 | 0.0101 | 0.4464 |
+| frequency (ε = 1) | 0.5132 | 0.0109 | 0.4468 |
+| one-hot, non-private | 0.4783 | 0.0083 | 0.5281 |
+| one-hot (ε = 1) | 0.4972 | 0.0093 | 0.4856 |
+
+**One-hot wins by more than privacy costs.** Private one-hot reaches
+PR-AUC 0.4856 against non-private frequency's 0.4464 and non-private
+numeric-only's 0.4332, so the encoding — paid for at ε = 1 — beats both
+dense arms running with the noise off.
+
+**The frequency encoding recovers little of what the categorical columns
+carry.** Dropping all 26 costs 0.0949 of PR-AUC against one-hot (0.4332
+against 0.5281, both non-private); replacing them with train-split
+frequencies buys back 0.0132 of that, about a seventh of the gap.
+
+**Privacy is free on the dense arms and not on the wide one.** Both dense
+encodings move inside the fourth decimal between their noiseless and
+private runs, where one-hot pays 0.5281 → 0.4856 — about a fifth of its
+resolution, which is the √d arithmetic the dimension predicts, paid and
+still won. The standardization confound runs *towards* the arms that
+lost: the dense arms standardize and one-hot cannot, so a fitted
+preprocessing step the losers received cannot explain the winner.
